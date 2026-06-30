@@ -96,6 +96,11 @@
   .sumcard .val{font-size:14.5px; font-weight:800; margin-top:3px;}
   .stat-bar{height:11px; border-radius:6px; background:var(--line); overflow:hidden;}
   .stat-bar>div{height:100%; border-radius:6px;}
+  .clock-nav{display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:4px;}
+  .clock-nav button{border:none; background:#fff0f4; color:var(--pink-d); width:34px; height:34px; border-radius:50%; font-size:15px; cursor:pointer;}
+  .clock-nav span{font-weight:800; font-size:14px;}
+  .clock-legend{display:flex; justify-content:center; gap:13px; flex-wrap:wrap; margin-top:6px; font-size:12px; color:var(--sub);}
+  .clock-legend i{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle;}
   /* modal */
   .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:flex-end; z-index:50;}
   .modal-bg.on{display:flex;}
@@ -253,6 +258,16 @@
 
     <div id="recStats" style="display:none">
       <div class="card">
+        <h2>🕛 24시간 일과표</h2>
+        <div class="clock-nav">
+          <button onclick="statDayShift(-1)">◀</button>
+          <span id="clockDate"></span>
+          <button onclick="statDayShift(1)">▶</button>
+        </div>
+        <div id="clockWrap" style="text-align:center"></div>
+        <div id="clockLegend" class="clock-legend"></div>
+      </div>
+      <div class="card">
         <h2>📊 오늘 요약</h2>
         <div id="statToday"></div>
       </div>
@@ -298,6 +313,11 @@
 <div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeRec()">
   <div class="modal" id="modalBody"></div>
 </div>
+
+<!-- iOS 햅틱 트릭용 (보이지 않음) -->
+<label id="hapticLabel" aria-hidden="true" style="position:absolute; opacity:0; pointer-events:none; width:0; height:0; overflow:hidden;">
+  <input type="checkbox" id="hapticSwitch" switch>
+</label>
 
 <nav>
   <button class="active" data-tab="tab-home" onclick="go(this)"><span class="ic">🧹</span>집안일</button>
@@ -779,16 +799,22 @@ function syncSlider(inputId){
   let off=Math.round((new Date(el.value)-_base[inputId])/60000);
   s.value=Math.max(-240, Math.min(240, off));
 }
+function haptic(){
+  try{
+    if(navigator.vibrate) navigator.vibrate(8);          // 안드로이드
+    const h=document.getElementById('hapticSwitch'); if(h) h.click();  // iOS 17.4+
+  }catch(e){}
+}
 function slideTime(inputId){
   const s=document.getElementById('sl_'+inputId);
   const d=new Date(_base[inputId].getTime()+(+s.value)*60000);
-  document.getElementById(inputId).value=fmtLocal(d); bigUpdate(inputId);
+  document.getElementById(inputId).value=fmtLocal(d); bigUpdate(inputId); haptic();
 }
 function adj(inputId, delta){
   const el=document.getElementById(inputId);
   let d = el.value ? new Date(el.value) : new Date();
   if(delta===null) d=new Date(); else d=new Date(d.getTime()+delta*60000);
-  writeTime(inputId, d);
+  writeTime(inputId, d); haptic();
 }
 function clearEnd(){ const e=document.getElementById('recEnd'); e.value=''; bigUpdate('recEnd'); }
 function setAmtDisplay(){
@@ -797,8 +823,8 @@ function setAmtDisplay(){
   const s=document.getElementById('amtSlider'); if(s && +s.value!==_amt) s.value=_amt;
   document.querySelectorAll('.amt-chips button').forEach(x=>x.classList.toggle('on', +x.dataset.v===_amt));
 }
-function adjAmt(d){ _amt=Math.max(0,_amt+d); setAmtDisplay(); }
-function setAmt(v){ _amt=v; setAmtDisplay(); }
+function adjAmt(d){ _amt=Math.max(0,_amt+d); setAmtDisplay(); haptic(); }
+function setAmt(v){ _amt=v; setAmtDisplay(); haptic(); }
 function pickKind(btn){
   document.querySelectorAll('.pill-row .pill').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on'); document.getElementById('recKind').value=btn.dataset.k;
@@ -947,6 +973,53 @@ function renderStats(){
       <div style="width:104px;text-align:right;font-size:12px">😴 ${o.sh.toFixed(1)}h · 🍼 ${o.fc}</div>
     </div>`;
   }).join('');
+  renderClock();
+}
+
+/* ---------- 24시간 원형 일과표 ---------- */
+let _statDay = null;
+function statDayShift(n){
+  if(!_statDay) _statDay=todayLocal();
+  const d=new Date(_statDay+'T00:00'); d.setDate(d.getDate()+n);
+  _statDay=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  renderClock();
+}
+function renderClock(){
+  if(!_statDay) _statDay=todayLocal();
+  const dt=new Date(_statDay+'T00:00');
+  document.getElementById('clockDate').textContent =
+    (dt.getMonth()+1)+'월 '+dt.getDate()+'일 ('+WD[dt.getDay()]+')'+(_statDay===todayLocal()?' · 오늘':'');
+  const C=120, bandR=76, markR=98, labR=113;
+  const polar=(r,deg)=>{ const a=(deg-90)*Math.PI/180; return [ (C+r*Math.cos(a)).toFixed(1), (C+r*Math.sin(a)).toFixed(1) ]; };
+  const minToDeg=m=>m/1440*360;
+  const minutesOf=ts=>{ const t=ts.slice(11,16).split(':'); return (+t[0])*60+(+t[1]); };
+  const arc=(s,e)=>{ const sd=minToDeg(s),ed=minToDeg(e); const [x1,y1]=polar(bandR,sd),[x2,y2]=polar(bandR,ed); const large=(ed-sd)>180?1:0;
+    return `<path d="M ${x1} ${y1} A ${bandR} ${bandR} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="#8a7fc2" stroke-width="16" stroke-linecap="round"/>`; };
+  const dayLogs = DB.logs.filter(r=>(r.ts||'').slice(0,10)===_statDay);
+  let svg=`<svg viewBox="0 0 240 240" width="230" height="230">`;
+  svg+=`<circle cx="${C}" cy="${C}" r="${bandR}" fill="none" stroke="#f0e3ea" stroke-width="16"/>`;
+  for(let h=0;h<24;h++){ const big=h%6===0; const [x1,y1]=polar(bandR+9, minToDeg(h*60)); const [x2,y2]=polar(bandR+(big?15:11), minToDeg(h*60));
+    svg+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#e7d8e0" stroke-width="${big?2:1}"/>`; }
+  let sleepMin=0;
+  // 같은 날 수면
+  dayLogs.filter(r=>r.type==='sleep'&&r.end).forEach(r=>{
+    const s=minutesOf(r.start); const e = r.end.slice(0,10)!==_statDay ? 1440 : minutesOf(r.end);
+    if(e>s){ sleepMin+=(e-s); svg+=arc(s,e); }
+  });
+  // 전날 시작해서 이 날로 넘어온 수면
+  DB.logs.filter(r=>r.type==='sleep'&&r.end && r.start.slice(0,10)!==_statDay && r.end.slice(0,10)===_statDay).forEach(r=>{
+    const e=minutesOf(r.end); if(e>0){ sleepMin+=e; svg+=arc(0,e); }
+  });
+  const dotColor={feed:'#e0922f',diaper:'#9c7355',bath:'#3aa3b8'};
+  dayLogs.filter(r=>r.type!=='sleep').forEach(r=>{ const [x,y]=polar(markR, minToDeg(minutesOf(r.ts))); svg+=`<circle cx="${x}" cy="${y}" r="4" fill="${dotColor[r.type]||'#999'}"/>`; });
+  [[0,'0'],[6,'6'],[12,'12'],[18,'18']].forEach(([h,t])=>{ const [x,y]=polar(labR, minToDeg(h*60)); svg+=`<text x="${x}" y="${y}" font-size="11" fill="#9a8e95" text-anchor="middle" dominant-baseline="middle">${t}</text>`; });
+  const ch=Math.floor(sleepMin/60), cm=sleepMin%60;
+  svg+=`<text x="${C}" y="${C-5}" font-size="12" fill="#9a8e95" text-anchor="middle">총 수면</text>`;
+  svg+=`<text x="${C}" y="${C+15}" font-size="19" font-weight="800" fill="#7d70b8" text-anchor="middle">${ch}시간 ${cm}분</text>`;
+  svg+=`</svg>`;
+  document.getElementById('clockWrap').innerHTML=svg;
+  document.getElementById('clockLegend').innerHTML=
+    `<span><i style="background:#8a7fc2"></i>수면</span><span><i style="background:#e0922f"></i>분유</span><span><i style="background:#9c7355"></i>기저귀</span><span><i style="background:#3aa3b8"></i>목욕</span>`;
 }
 
 /* ---------- util ---------- */
