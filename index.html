@@ -1618,6 +1618,7 @@ function computeReminders(){
   const lf=lastFeedAny();
   if(lf && !ongoingNursing()){ const mins=Math.round((new Date()-new Date(lf.ts))/60000); if(mins>=fh*60){ const h=Math.floor(mins/60),m=mins%60; out.push({i:'🍼',t:`수유한 지 ${h}시간 ${m}분 지났어요`}); } }
   [...DB.events].filter(e=>!e.done).forEach(e=>{ const dd=dayDiff(e.d); if(dd<0) out.push({i:'📅',t:`${e.t} — ${-dd}일 지남`}); else if(dd<=3) out.push({i:'📅',t:`${e.t} — ${dd===0?'오늘':'D-'+dd}`}); });
+  [...(DB.notes||[])].filter(n=>!n.done).forEach(n=>{ const dd=dayDiff(n.d); const tm=n.tm?(' '+n.tm):''; if(dd===0) out.push({i:'📌',t:`${n.t}${tm} — 오늘`}); else if(dd>0&&dd<=3) out.push({i:'📌',t:`${n.t}${tm} — D-${dd}`}); });
   DB.supplies.forEach(it=>{ const st=supplyStat(it); if(st.rate>0 && st.daysLeft<=3) out.push({i:'🛒',t:`${it.name} 곧 소진 (${st.daysLeft<0?'지남':'D-'+st.daysLeft})`}); });
   return out;
 }
@@ -1670,12 +1671,15 @@ function renderDash(){
   const sleepTxt = og?'수면 중 😴':(()=>{ const ls=[...DB.logs].filter(r=>r.type==='sleep'&&r.end).sort((a,b)=>b.end.localeCompare(a.end))[0]; return ls?agoText(ls.end):'-'; })();
   const futureEv=[...DB.events].filter(e=>!e.done && e.d>=tk).sort((a,b)=>a.d.localeCompare(b.d))[0];
   let evTxt='-'; if(futureEv){ const dd=dayDiff(futureEv.d); evTxt=`${esc(futureEv.t)} <b>${dd===0?'오늘':'D-'+dd}</b>`; }
+  const todayMemos=[...(DB.notes||[])].filter(n=>!n.done && n.d===tk).sort((a,b)=>(a.tm||'99').localeCompare(b.tm||'99'));
+  const memoRow = todayMemos.length ? `<div class="dash-row"><span>📌 오늘 메모</span><span style="text-align:right;max-width:62%">${todayMemos.map(n=>esc((n.tm?n.tm+' ':'')+n.t)).join('<br>')}</span></div>` : '';
   document.getElementById('dashToday').innerHTML=
     `<div class="dash-row"><span>🧹 오늘 집안일</span><b>${doneChores}/${activeChores.length}</b></div>
      <div class="dash-row"><span>🍼 마지막 수유</span><b>${lf?agoText(lf.ts):'-'}</b></div>
      <div class="dash-row"><span>🧷 마지막 기저귀</span><b>${ld?agoText(ld.ts):'-'}</b></div>
      <div class="dash-row"><span>😴 수면</span><b>${sleepTxt}</b></div>
-     <div class="dash-row"><span>📅 다음 일정</span><span>${evTxt}</span></div>`;
+     <div class="dash-row"><span>📅 다음 일정</span><span>${evTxt}</span></div>
+     ${memoRow}`;
   const soon=DB.supplies.map(it=>({it,st:supplyStat(it)})).filter(o=>o.st.rate>0 && o.st.daysLeft<=7).sort((a,b)=>a.st.daysLeft-b.st.daysLeft);
   const sc=document.getElementById('dashSupplyCard');
   if(soon.length){ sc.style.display='block'; document.getElementById('dashSupply').innerHTML=soon.map(o=>`<div class="dash-row"><span>📦 ${esc(o.it.name)}</span><b>${o.st.daysLeft<0?'소진 지남':'D-'+o.st.daysLeft}</b></div>`).join(''); }
