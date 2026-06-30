@@ -126,6 +126,10 @@
   .seg{display:flex; gap:6px; margin-bottom:12px;}
   .seg button{flex:1; padding:8px; border-radius:10px; border:1.5px solid var(--line); background:#fff; color:var(--sub); font-weight:700; font-size:13px; cursor:pointer;}
   .seg button.on{background:var(--pink); color:#fff; border-color:var(--pink);}
+  .daybar{display:flex; gap:4px; margin-bottom:12px;}
+  .daybar button{flex:1; padding:10px 0; border-radius:11px; border:1.5px solid var(--line); background:#fff; font-weight:800; font-size:13px; color:var(--sub); cursor:pointer; position:relative;}
+  .daybar button.on{background:var(--pink); color:#fff; border-color:var(--pink);}
+  .todot{position:absolute; bottom:4px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:currentColor; opacity:.75;}
 </style>
 </head>
 <body>
@@ -139,11 +143,12 @@
 
   <!-- ============ 집안일 ============ -->
   <section class="tab active" id="tab-home">
+    <div class="daybar" id="dayBar"></div>
     <div class="card">
-      <h2>🧹 오늘 할 집안일</h2>
+      <h2>🧹 집안일 체크리스트</h2>
       <div class="muted" id="todayLabel" style="margin-bottom:4px"></div>
       <div id="todayChores"></div>
-      <div class="muted" style="margin-top:10px">✅ 체크는 매일 자정에 자동으로 초기화돼요.</div>
+      <div class="muted" style="margin-top:10px">✅ 체크는 날짜별로 저장되고 매일 새로 시작돼요.</div>
     </div>
 
     <div class="card">
@@ -157,7 +162,7 @@
       </div>
       <div id="dayPick" style="display:none; margin-bottom:8px"></div>
       <div class="seg" id="ruleTime">
-        <button data-t="아무때나" class="on" onclick="pickTime(this)">아무때나</button>
+        <button data-t="데일리" class="on" onclick="pickTime(this)">데일리</button>
         <button data-t="출근 전" onclick="pickTime(this)">출근 전</button>
       </div>
       <button class="btn" style="width:100%" onclick="addRule()">＋ 반복 일정 추가</button>
@@ -282,7 +287,20 @@ function load(){
 function migrate(d){
   d.events ??= []; d.milk ??= seed().milk; d.lastReset ??= todayStr();
   if(!d.choreRules || !d.choreRules.length) d.choreRules = defaultRules();
+  // 일회성 규칙 수정: 일반쓰레기 → 매일·출근 전, 이름 정리
+  if(!d.choreFix1 && Array.isArray(d.choreRules)){
+    d.choreRules.forEach(r=>{ if(r.t && r.t.indexOf('일반쓰레기')>=0){ r.t='일반쓰레기 버리기'; r.time='출근 전'; } });
+    d.choreFix1=true;
+  }
+  // 라벨 변경: '아무때나' → '데일리'
+  if(Array.isArray(d.choreRules)) d.choreRules.forEach(r=>{ if(r.time==='아무때나') r.time='데일리'; });
+  // choreDone 형식 변환: {id:'날짜'} → {'id__날짜':true} (요일별 보기 지원)
   d.choreDone ??= {};
+  if(Object.keys(d.choreDone).some(k=>!k.includes('__'))){
+    const nd={};
+    Object.keys(d.choreDone).forEach(k=>{ const v=d.choreDone[k]; if(v===true && k.includes('__')) nd[k]=true; else if(typeof v==='string') nd[k+'__'+v]=true; });
+    d.choreDone=nd;
+  }
   d.logs ??= [];
   delete d.chores; // 구버전 정리
   return d;
@@ -293,12 +311,12 @@ function defaultRules(){
     {id:id(), t:"재활용 분리수거", rule:"weekly", days:[2,3], time:"출근 전"},
     {id:id(), t:"제습기 물 버리기", rule:"daily", days:[], time:"출근 전"},
     {id:id(), t:"환기 시키기", rule:"daily", days:[], time:"출근 전"},
-    {id:id(), t:"일반쓰레기 버리기 (있으면)", rule:"daily", days:[], time:"아무때나"},
-    {id:id(), t:"청소기 돌리기", rule:"daily", days:[], time:"아무때나"},
-    {id:id(), t:"이솔이 빨래", rule:"daily", days:[], time:"아무때나"},
-    {id:id(), t:"물걸레 청소", rule:"weekly", days:[3,0], time:"아무때나"},
-    {id:id(), t:"라비킷·베이비브레짜·보르르 세척", rule:"weekly", days:[6,0], time:"아무때나"},
-    {id:id(), t:"이솔이 목욕 (격일)", rule:"everyother", days:[], time:"아무때나", anchor:t},
+    {id:id(), t:"일반쓰레기 버리기", rule:"daily", days:[], time:"출근 전"},
+    {id:id(), t:"청소기 돌리기", rule:"daily", days:[], time:"데일리"},
+    {id:id(), t:"이솔이 빨래", rule:"daily", days:[], time:"데일리"},
+    {id:id(), t:"물걸레 청소", rule:"weekly", days:[3,0], time:"데일리"},
+    {id:id(), t:"라비킷·베이비브레짜·보르르 세척", rule:"weekly", days:[6,0], time:"데일리"},
+    {id:id(), t:"이솔이 목욕 (격일)", rule:"everyother", days:[], time:"데일리", anchor:t},
   ];
 }
 function seed(){
@@ -322,23 +340,38 @@ function go(btn){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById(btn.dataset.tab).classList.add('active');
+  if(btn.dataset.tab==='tab-home') refreshHome();
   window.scrollTo(0,0);
 }
 
 /* ---------- 집안일 (반복 일정) ---------- */
 const WD = ['일','월','화','수','목','금','토'];
-let _freq='daily', _time='아무때나', _days=new Set();
+let _freq='daily', _time='데일리', _days=new Set();
+let _selDay = new Date().getDay();   // 집안일에서 보고 있는 요일
 
-function isActiveToday(r){
-  const today=new Date(todayStr());
+function dateForWeekday(wd){
+  const t=new Date(); const d=new Date(t); d.setDate(t.getDate()+(wd-t.getDay())); return d;
+}
+function selDateKey(){ const d=dateForWeekday(_selDay); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function isActiveOn(r, date){
   if(r.rule==='daily') return true;
-  if(r.rule==='weekly') return (r.days||[]).includes(today.getDay());
+  if(r.rule==='weekly') return (r.days||[]).includes(date.getDay());
   if(r.rule==='everyother'){
-    const diff=Math.round((today-new Date(r.anchor||todayStr()))/86400000);
+    const a=new Date(date.getFullYear(),date.getMonth(),date.getDate());
+    const b=new Date((r.anchor||todayStr())+'T00:00');
+    const diff=Math.round((a-b)/86400000);
     return (((diff%2)+2)%2)===0;
   }
   return true;
 }
+function renderDayBar(){
+  const today=new Date().getDay();
+  document.getElementById('dayBar').innerHTML = [0,1,2,3,4,5,6].map(d=>{
+    const c = d!==_selDay ? (d===0?'color:#e8607a':d===6?'color:#5b8fe0':'') : '';
+    return `<button class="${d===_selDay?'on':''}" style="${c}" onclick="selDay(${d})">${WD[d]}${d===today?'<span class="todot"></span>':''}</button>`;
+  }).join('');
+}
+function selDay(d){ _selDay=d; renderDayBar(); renderChores(); }
 function scheduleLabel(r){
   let s;
   if(r.rule==='daily') s='매일';
@@ -348,13 +381,14 @@ function scheduleLabel(r){
   return s;
 }
 function toggleChore(rid){
-  if(DB.choreDone[rid]===todayStr()) delete DB.choreDone[rid];
-  else DB.choreDone[rid]=todayStr();
+  const k=rid+'__'+selDateKey();
+  if(DB.choreDone[k]) delete DB.choreDone[k];
+  else DB.choreDone[k]=true;
   save(); renderChores();
 }
 function delRule(rid){
   DB.choreRules=DB.choreRules.filter(r=>r.id!==rid);
-  delete DB.choreDone[rid];
+  Object.keys(DB.choreDone).forEach(k=>{ if(k.indexOf(rid+'__')===0) delete DB.choreDone[k]; });
   save(); renderChores();
 }
 function pickFreq(btn){
@@ -385,24 +419,26 @@ function addRule(){
   save(); renderDayPick(); renderChores();
 }
 function renderChores(){
-  const today=new Date(todayStr());
+  const sel=dateForWeekday(_selDay);
+  const isToday = _selDay===new Date().getDay();
   document.getElementById('todayLabel').textContent =
-    (today.getMonth()+1)+'월 '+today.getDate()+'일 ('+WD[today.getDay()]+'요일)';
-  const groups=[{key:'출근 전',icon:'🌅'},{key:'아무때나',icon:'🏠'}];
+    (sel.getMonth()+1)+'월 '+sel.getDate()+'일 ('+WD[sel.getDay()]+'요일)'+(isToday?' · 오늘':'');
+  const dkey=selDateKey();
+  const groups=[{key:'출근 전',icon:'🌅'},{key:'데일리',icon:'🏠'}];
   let html='';
   groups.forEach(g=>{
-    const items=DB.choreRules.filter(r=>r.time===g.key && isActiveToday(r));
+    const items=DB.choreRules.filter(r=>r.time===g.key && isActiveOn(r, sel));
     if(!items.length) return;
     html+=`<div style="margin:12px 0 2px;font-weight:800;font-size:13.5px">${g.icon} ${g.key}</div>`;
     html+='<ul class="list">'+items.map(r=>{
-      const on=DB.choreDone[r.id]===todayStr();
+      const on=DB.choreDone[r.id+'__'+dkey]===true;
       return `<li class="${on?'done':''}">
         <div class="check ${on?'on':''}" onclick="toggleChore('${r.id}')">${on?'✓':''}</div>
         <div class="li-body"><div class="li-title">${esc(r.t)}</div></div>
       </li>`;
     }).join('')+'</ul>';
   });
-  document.getElementById('todayChores').innerHTML = html || '<div class="empty">오늘은 등록된 집안일이 없어요 ✨</div>';
+  document.getElementById('todayChores').innerHTML = html || '<div class="empty">이 날은 등록된 집안일이 없어요 ✨</div>';
   const rl=document.getElementById('ruleList');
   rl.innerHTML = DB.choreRules.map(r=>`
     <li>
@@ -729,7 +765,10 @@ function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 // 날짜 기본값 = 오늘
 document.getElementById('evDate').value = todayStr();
 // 날짜가 바뀌면 집안일 자동 초기화 안내(자동으로 끄지 않고 안내만 — 데이터 보존)
-renderDayPick(); renderChores(); renderEvents(); renderMilk(); renderRecords();
+function refreshHome(){ _selDay=new Date().getDay(); renderDayBar(); renderChores(); }
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshHome(); });
+window.addEventListener('focus', refreshHome);
+renderDayPick(); renderDayBar(); renderChores(); renderEvents(); renderMilk(); renderRecords();
 </script>
 </body>
 </html>
