@@ -253,7 +253,7 @@
 
     <div class="card">
       <h2>📋 분유 수유 기준표</h2>
-      <p class="muted" style="margin-top:0">직접 추가·수정하세요. (기준: 물 100ml + 분유 4스푼)</p>
+      <p class="muted" style="margin-top:0">직접 추가·수정하세요.</p>
       <table>
         <thead><tr><th>총량(ml)</th><th>물(ml)</th><th>분유(스푼)</th><th></th></tr></thead>
         <tbody id="milkBody"></tbody>
@@ -293,6 +293,7 @@ function load(){
 }
 function migrate(d){
   d.events ??= []; d.milk ??= seed().milk; d.lastReset ??= todayStr();
+  if(!d.milkFix1){ d.milk = defaultMilk(); d.milkFix1=true; }  // 기준표 1회 교체
   if(!d.choreRules || !d.choreRules.length) d.choreRules = defaultRules();
   // 일회성 규칙 수정: 일반쓰레기 → 매일·출근 전, 이름 정리
   if(!d.choreFix1 && Array.isArray(d.choreRules)){
@@ -326,15 +327,21 @@ function defaultRules(){
     {id:id(), t:"이솔이 목욕 (격일)", rule:"everyother", days:[], time:"데일리", anchor:t},
   ];
 }
+function defaultMilk(){
+  return [
+    {ml:100, water:85,  scoop:3},
+    {ml:130, water:115, scoop:4},
+    {ml:165, water:140, scoop:5},
+    {ml:200, water:180, scoop:6},
+  ];
+}
 function seed(){
-  // 기준: 물 100ml = 분유 4스푼 (25ml당 1스푼)
-  const mk = ml => ({ml, water:ml, scoop:+(ml/25).toFixed(1)});
   return {
     choreRules: defaultRules(),
     choreDone: {},
     logs:[],
     events:[],
-    milk:[60,90,100,120,150,180,210,240].map(mk),
+    milk: defaultMilk(),
     lastReset: todayStr()
   };
 }
