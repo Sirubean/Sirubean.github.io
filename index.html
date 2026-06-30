@@ -353,10 +353,20 @@
     <div class="card"><h2>🌀 원더윅스 (도약기)</h2><div id="devWW"></div></div>
   </section>
 
-  <!-- ============ 소모품 (준비중, 2단계) ============ -->
+  <!-- ============ 소모품 관리 ============ -->
   <section class="tab" id="tab-supply">
     <a class="backlink" onclick="goTab('tab-more')">← 더보기</a>
-    <div class="card"><h2>🛒 소모품 관리</h2><p class="muted">곧 추가됩니다.</p></div>
+    <div class="card">
+      <h2>🛒 소모품 추가</h2>
+      <input class="field" id="supName" placeholder="품목 (예: 기저귀, 분유, 물티슈)">
+      <div class="row" style="margin-top:8px">
+        <input class="field" id="supUnit" placeholder="단위 (개/통/팩)">
+        <input class="field" id="supPer" type="number" inputmode="decimal" placeholder="하루 사용량(선택)">
+      </div>
+      <button class="btn" style="width:100%;margin-top:10px" onclick="addSupply()">＋ 품목 추가</button>
+      <p class="muted" style="margin-top:8px">구매를 2번 이상 기록하면 평균 사용량·소진일을 자동 계산해요. (하루 사용량을 직접 넣으면 1번 기록으로도 계산됩니다)</p>
+    </div>
+    <div id="supplyList"></div>
   </section>
 
   <!-- ============ 지원금 (준비중, 3단계) ============ -->
@@ -459,6 +469,7 @@ function migrate(d){
   d.logs ??= [];
   d.notes ??= [];
   d.growth ??= [];
+  d.supplies ??= [];
   d.baby ??= {name:'',nick:'',birth:'',use:'name'};
   delete d.chores; // 구버전 정리
   return d;
@@ -492,6 +503,7 @@ function seed(){
     logs:[],
     notes:[],
     growth:[],
+    supplies:[],
     baby:{name:'',nick:'',birth:'',use:'name'},
     events:[],
     milk: defaultMilk(),
@@ -581,7 +593,7 @@ function openSync(){
   document.getElementById('modalBg').classList.add('on');
 }
 function renderAll(){
-  try{ renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); renderGrowth(); applyBaby(); renderDev(); }catch(e){ console.warn(e); }
+  try{ renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); renderGrowth(); applyBaby(); renderDev(); renderSupplies(); }catch(e){ console.warn(e); }
 }
 
 /* ---------- nav ---------- */
@@ -595,6 +607,8 @@ function goTab(id){
   (direct || navBtns.find(b=>b.dataset.tab==='tab-more')).classList.add('active');
   if(id==='tab-home') refreshHome();
   if(id==='tab-dev') renderDev();
+  if(id==='tab-supply') renderSupplies();
+  if(id==='tab-policy') renderPolicy();
   window.scrollTo(0,0);
 }
 
@@ -1336,6 +1350,80 @@ function renderDev(){
   wEl.innerHTML=html;
 }
 
+/* ---------- 소모품 관리 ---------- */
+function supplyStat(it){
+  const ps=[...(it.purchases||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  if(!ps.length) return {none:true};
+  const last=ps[ps.length-1];
+  let rate=null, src='';
+  if(it.perDay){ rate=+it.perDay; src='수동'; }
+  else if(ps.length>=2){
+    const consumed=ps.slice(0,-1).reduce((s,p)=>s+(+p.qty),0);
+    const days=(new Date(last.date+'T00:00')-new Date(ps[0].date+'T00:00'))/86400000;
+    if(days>0 && consumed>0){ rate=consumed/days; src='추정'; }
+  }
+  const r={lastDate:last.date, lastQty:+last.qty, rate, src};
+  if(rate>0){
+    const ro=new Date(last.date+'T00:00'); ro.setDate(ro.getDate()+Math.round((+last.qty)/rate));
+    r.runOut=`${ro.getFullYear()}-${pad(ro.getMonth()+1)}-${pad(ro.getDate())}`;
+    r.daysLeft=Math.round((ro-new Date(todayLocal()+'T00:00'))/86400000);
+  }
+  return r;
+}
+function addSupply(){
+  const name=val('supName').trim(); if(!name){ alert('품목 이름을 입력하세요.'); return; }
+  const unit=val('supUnit').trim()||'개'; const per=val('supPer');
+  DB.supplies.push({id:id(), name, unit, perDay:per?+per:null, purchases:[]});
+  ['supName','supUnit','supPer'].forEach(x=>document.getElementById(x).value='');
+  save(); renderSupplies();
+}
+function addPurchase(itemId){
+  const it=DB.supplies.find(x=>x.id===itemId); if(!it) return;
+  const d=val('pDate_'+itemId), q=val('pQty_'+itemId);
+  if(!d||!q){ alert('날짜와 수량을 입력하세요.'); return; }
+  (it.purchases=it.purchases||[]).push({id:id(), date:d, qty:+q});
+  save(); renderSupplies();
+}
+function delPurchase(itemId,pid){ const it=DB.supplies.find(x=>x.id===itemId); if(it){ it.purchases=(it.purchases||[]).filter(p=>p.id!==pid); save(); renderSupplies(); } }
+function delSupply(itemId){ if(!confirm('이 품목을 삭제할까요?')) return; DB.supplies=DB.supplies.filter(x=>x.id!==itemId); save(); renderSupplies(); }
+function renderSupplies(){
+  const wrap=document.getElementById('supplyList'); if(!wrap) return;
+  if(!DB.supplies.length){ wrap.innerHTML='<div class="card"><div class="empty">아직 품목이 없어요 🛒</div></div>'; return; }
+  wrap.innerHTML=DB.supplies.map(it=>{
+    const u=esc(it.unit||'개'); const st=supplyStat(it);
+    let summary;
+    if(st.none){ summary='<div class="muted">아직 구매 기록이 없어요. 아래에서 추가하세요.</div>'; }
+    else if(st.rate>0){
+      const dl=st.daysLeft;
+      const chip = dl<0?'<span class="chip past">소진 지남</span>': dl===0?'<span class="chip today">오늘쯤</span>': dl<=5?`<span class="chip soon">D-${dl}</span>`:`<span class="chip">D-${dl}</span>`;
+      summary=`<div class="li-sub">최근 구매: ${st.lastDate} · ${st.lastQty}${u}</div>
+        <div style="margin-top:4px;font-size:13px">평균 <b>${st.rate.toFixed(1)}${u}/일</b> <span class="muted">(${st.src})</span></div>
+        <div style="margin-top:4px;font-size:13px">예상 소진 ${chip} <span class="muted">${st.runOut}</span></div>
+        <div style="margin-top:3px;font-size:13px;color:var(--pink-d);font-weight:700">👉 ${st.runOut}쯤 구매 추천</div>`;
+    } else {
+      summary=`<div class="li-sub">최근 구매: ${st.lastDate} · ${st.lastQty}${u}</div>
+        <div class="muted" style="margin-top:4px">구매를 2번 이상 기록하거나 하루 사용량을 넣으면 소진일이 계산돼요.</div>`;
+    }
+    const recent=[...(it.purchases||[])].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5)
+      .map(p=>`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:var(--sub)"><span>${p.date} · ${p.qty}${u}</span><span onclick="delPurchase('${it.id}','${p.id}')" style="cursor:pointer">🗑️</span></div>`).join('');
+    return `<div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <h2 style="margin:0">📦 ${esc(it.name)}</h2>
+        <button class="iconbtn" onclick="delSupply('${it.id}')">🗑️</button>
+      </div>
+      <div style="margin-top:6px">${summary}</div>
+      <div class="row" style="margin-top:10px">
+        <input class="field" type="date" id="pDate_${it.id}">
+        <input class="field" type="number" inputmode="decimal" id="pQty_${it.id}" placeholder="수량" style="flex:0 0 30%">
+        <button class="btn sm" style="flex:0 0 auto" onclick="addPurchase('${it.id}')">구매기록</button>
+      </div>
+      ${recent?`<div style="margin-top:8px">${recent}</div>`:''}
+    </div>`;
+  }).join('');
+  DB.supplies.forEach(it=>{ const e=document.getElementById('pDate_'+it.id); if(e&&!e.value) e.value=todayLocal(); });
+}
+function renderPolicy(){}  /* 3단계에서 구현 */
+
 /* ---------- util ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -1351,7 +1439,7 @@ function refreshHome(){ _selDay=new Date().getDay(); renderDayBar(); renderChore
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshHome(); });
 window.addEventListener('focus', refreshHome);
 renderDayPick(); renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); renderGrowth();
-applyBaby(); renderDev();
+applyBaby(); renderDev(); renderSupplies();
 initFirebase();
 </script>
 </body>
