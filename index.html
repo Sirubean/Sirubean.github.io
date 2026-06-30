@@ -150,6 +150,8 @@
   nav button{flex:1; background:none; border:none; padding:9px 0 8px; cursor:pointer; color:var(--sub); font-size:11px; font-weight:700; display:flex; flex-direction:column; align-items:center; gap:3px;}
   nav button .ic{font-size:22px;}
   nav button.active{color:var(--pink-d);}
+  nav button{position:relative;}
+  .ndot{position:absolute; top:6px; left:50%; margin-left:6px; width:8px; height:8px; border-radius:50%; background:#ff3b6b;}
   .fab-note{font-size:11.5px; color:var(--sub); text-align:center; margin:2px 0 16px;}
   .seg{display:flex; gap:6px; margin-bottom:12px;}
   .seg button{flex:1; padding:8px; border-radius:10px; border:1.5px solid var(--line); background:var(--surface); color:var(--sub); font-weight:700; font-size:13px; cursor:pointer;}
@@ -182,6 +184,7 @@
 
   <!-- ============ 홈 대시보드 ============ -->
   <section class="tab active" id="tab-dash">
+    <div class="card" id="dashAlertCard" style="display:none;background:#fff4e0"><h2>🔔 알림</h2><div id="dashAlerts"></div></div>
     <div class="card" id="dashHead"></div>
     <div class="card"><h2>📋 오늘 한눈에</h2><div id="dashToday"></div></div>
     <div class="card" id="dashSupplyCard" style="display:none"><h2>🛒 곧 떨어져요</h2><div id="dashSupply"></div></div>
@@ -509,6 +512,7 @@ function migrate(d){
   d.notes ??= [];
   d.growth ??= [];
   d.supplies ??= [];
+  d.settings ??= {feedHours:3, notify:false};
   d.baby ??= {name:'',nick:'',birth:'',use:'name'};
   delete d.chores; // 구버전 정리
   return d;
@@ -543,6 +547,7 @@ function seed(){
     notes:[],
     growth:[],
     supplies:[],
+    settings:{feedHours:3, notify:false},
     baby:{name:'',nick:'',birth:'',use:'name'},
     events:[],
     milk: defaultMilk(),
@@ -1608,8 +1613,47 @@ function policyItems(a){
   mk('🐰 깡충깡충 성장양육지원금','만 2·3·4세 각 1회 30만원 (관악사랑상품권)','정부24 · 동주민센터','https://www.gov.kr','만 2세부터 매년 (관악구)',kc);
   return items;
 }
+function computeReminders(){
+  const out=[]; const fh=(DB.settings&&DB.settings.feedHours)||3;
+  const lf=lastFeedAny();
+  if(lf && !ongoingNursing()){ const mins=Math.round((new Date()-new Date(lf.ts))/60000); if(mins>=fh*60){ const h=Math.floor(mins/60),m=mins%60; out.push({i:'🍼',t:`수유한 지 ${h}시간 ${m}분 지났어요`}); } }
+  [...DB.events].filter(e=>!e.done).forEach(e=>{ const dd=dayDiff(e.d); if(dd<0) out.push({i:'📅',t:`${e.t} — ${-dd}일 지남`}); else if(dd<=3) out.push({i:'📅',t:`${e.t} — ${dd===0?'오늘':'D-'+dd}`}); });
+  DB.supplies.forEach(it=>{ const st=supplyStat(it); if(st.rate>0 && st.daysLeft<=3) out.push({i:'🛒',t:`${it.name} 곧 소진 (${st.daysLeft<0?'지남':'D-'+st.daysLeft})`}); });
+  return out;
+}
+function setFeedHours(v){ DB.settings.feedHours=+v; save(); renderDash(); }
+function toggleNotify(){
+  if(!('Notification' in window)){ alert('이 브라우저는 알림을 지원하지 않아요.'); return; }
+  Notification.requestPermission().then(p=>{ DB.settings.notify=(p==='granted'); save(); renderDash();
+    if(p!=='granted') alert('알림 권한이 허용되지 않았어요.\n아이폰은 홈 화면에 추가한 앱에서 iOS 16.4 이상만 동작해요.'); });
+}
+function fireNotify(){
+  if(!DB.settings||!DB.settings.notify) return;
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  const r=computeReminders(); if(!r.length) return;
+  try{ new Notification('우리아이 케어', {body:r.slice(0,3).map(x=>x.i+' '+x.t).join('\n')}); }catch(e){}
+}
 function renderDash(){
   const head=document.getElementById('dashHead'); if(!head) return;
+  // 알림
+  const rem=computeReminders();
+  const ac=document.getElementById('dashAlertCard');
+  if(ac){
+    const notifyOn = DB.settings && DB.settings.notify;
+    const fh=(DB.settings&&DB.settings.feedHours)||3;
+    let inner = rem.length ? rem.map(x=>`<div class="dash-row"><span>${x.i} ${esc(x.t)}</span></div>`).join('') : '<div class="muted">지금은 알림이 없어요 👍</div>';
+    inner += `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:13px">
+      <span>수유 간격
+        <select onchange="setFeedHours(this.value)" style="border:1px solid var(--line);border-radius:8px;padding:3px 6px;background:var(--field);color:var(--ink)">
+          ${[2,2.5,3,3.5,4].map(h=>`<option value="${h}" ${h==fh?'selected':''}>${h}시간</option>`).join('')}
+        </select></span>
+      <button class="btn sm ${notifyOn?'':'ghost'}" onclick="toggleNotify()">${notifyOn?'🔔 알림 켜짐':'🔔 알림 켜기'}</button>
+    </div>`;
+    document.getElementById('dashAlerts').innerHTML=inner;
+    ac.style.display='block';
+  }
+  const homeBtn=document.querySelector('nav button[data-tab="tab-dash"]');
+  if(homeBtn){ const ex=homeBtn.querySelector('.ndot'); if(rem.length && !ex){ const s=document.createElement('span'); s.className='ndot'; homeBtn.appendChild(s); } else if(!rem.length && ex){ ex.remove(); } }
   const a=ageInfo(); const nm=babyName();
   head.innerHTML=`<h2 style="margin:0 0 2px">${nm?esc(nm)+' 👶':'🍼 우리아이 케어'}</h2>
     <div class="muted">${a?`생후 ${a.months}개월 · D+${a.days} · ${a.weeks}주차`:'<a onclick="goTab(\'tab-baby\')" style="color:var(--pink-d);cursor:pointer;font-weight:700">아이 정보를 입력해 주세요 →</a>'}</div>
@@ -1668,12 +1712,13 @@ document.getElementById('grDate').value = todayStr();
 // 다크모드 불러오기
 if(localStorage.getItem('babycare_dark')==='1'){ document.body.classList.add('dark'); document.getElementById('darkBtn').textContent='☀️'; }
 // 날짜가 바뀌면 집안일 자동 초기화 안내(자동으로 끄지 않고 안내만 — 데이터 보존)
-function refreshHome(){ _selDay=new Date().getDay(); renderDayBar(); renderChores(); }
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshHome(); });
+function refreshHome(){ _selDay=new Date().getDay(); renderDayBar(); renderChores(); renderDash(); }
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ refreshHome(); fireNotify(); } });
 window.addEventListener('focus', refreshHome);
 renderDayPick(); renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); renderGrowth();
 applyBaby(); renderDev(); renderSupplies(); renderPolicy(); renderDash();
 initFirebase();
+fireNotify();
 </script>
 </body>
 </html>
