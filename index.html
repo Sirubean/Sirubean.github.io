@@ -319,6 +319,7 @@
         </div>
         <button class="btn" style="width:100%;margin-top:10px" onclick="addGrowth()">＋ 기록 추가</button>
       </div>
+      <div class="card"><h2>📊 또래 비교 <span class="muted" style="font-weight:600;font-size:12px">· WHO 기준 추정</span></h2><div id="growthPct"></div></div>
       <div class="card"><h2>⚖️ 몸무게 (kg)</h2><div id="chartW"></div></div>
       <div class="card"><h2>📏 키 (cm)</h2><div id="chartH"></div></div>
       <div class="card"><h2>🧠 머리둘레 (cm)</h2><div id="chartHc"></div></div>
@@ -352,6 +353,12 @@
       <input class="field" id="bbNick" placeholder="예: 콩이">
       <label class="flbl">생년월일</label>
       <input class="field" type="date" id="bbBirth">
+      <label class="flbl">성별 (성장 또래 비교에 사용)</label>
+      <div class="seg" id="bbSex">
+        <button class="on" data-s="" onclick="pickSex(this)">미설정</button>
+        <button data-s="boy" onclick="pickSex(this)">남아</button>
+        <button data-s="girl" onclick="pickSex(this)">여아</button>
+      </div>
       <label class="flbl">맨 위에 표시할 이름</label>
       <div class="seg" id="bbUse">
         <button class="on" data-u="name" onclick="pickUse(this)">이름</button>
@@ -1329,10 +1336,54 @@ function growthChart(elId, key, color){
   svg+=`</svg>`;
   el.innerHTML=svg;
 }
+/* WHO 표준 중앙값(P50) — 월령 [0,1,2,3,4,5,6,9,12,15,18,21,24] */
+const WHO_MO=[0,1,2,3,4,5,6,9,12,15,18,21,24];
+const WHO={
+  boy:{ w:[3.3,4.5,5.6,6.4,7.0,7.5,7.9,8.9,9.6,10.3,10.9,11.5,12.2],
+        h:[49.9,54.7,58.4,61.4,63.9,65.9,67.6,72.0,75.7,79.1,82.3,85.1,87.1],
+        hc:[34.5,37.3,39.1,40.5,41.6,42.6,43.3,45.2,46.1,46.9,47.4,47.9,48.3] },
+  girl:{ w:[3.2,4.2,5.1,5.8,6.4,6.9,7.3,8.2,8.9,9.6,10.2,10.9,11.5],
+         h:[49.1,53.7,57.1,59.8,62.1,64.0,65.7,70.1,74.0,77.5,80.7,83.7,85.7],
+         hc:[33.9,36.5,38.3,39.5,40.6,41.5,42.2,44.1,45.0,45.8,46.3,46.8,47.2] }
+};
+const WHO_CV={w:0.12, h:0.037, hc:0.028};  // 대략적 변동계수(추정용)
+function erf(x){ const s=x<0?-1:1; x=Math.abs(x); const t=1/(1+0.3275911*x); const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x); return s*y; }
+function pctFromZ(z){ return Math.round(0.5*(1+erf(z/Math.SQRT2))*100); }
+function whoMedian(sex,key,mo){
+  const arr=WHO[sex] && WHO[sex][key]; if(!arr) return null;
+  if(mo<=WHO_MO[0]) return arr[0];
+  if(mo>=WHO_MO[WHO_MO.length-1]) return arr[arr.length-1];
+  for(let i=0;i<WHO_MO.length-1;i++){ if(mo>=WHO_MO[i]&&mo<=WHO_MO[i+1]){ const f=(mo-WHO_MO[i])/(WHO_MO[i+1]-WHO_MO[i]); return arr[i]+(arr[i+1]-arr[i])*f; } }
+  return arr[arr.length-1];
+}
+function growthCompare(key){
+  const b=DB.baby||{}; const sex=b.sex; if(!sex||!b.birth) return null;
+  const pts=DB.growth.filter(g=>g[key]!=null&&g[key]!=='').sort((a,b)=>a.d.localeCompare(b.d));
+  if(!pts.length) return null;
+  const last=pts[pts.length-1]; const val=+last[key];
+  const ageM=Math.floor((new Date(last.d+'T00:00')-new Date(b.birth+'T00:00'))/86400000/30.4375);
+  const med=whoMedian(sex,key,ageM); if(med==null) return null;
+  const sd=med*WHO_CV[key]; const z=(val-med)/sd; let pct=pctFromZ(z); pct=Math.max(1,Math.min(99,pct));
+  let band = pct<3?'또래보다 작은 편' : pct<15?'약간 작은 편' : pct<=85?'또래 평균 수준' : pct<=97?'약간 큰 편' : '또래보다 큰 편';
+  return {val, med:+med.toFixed(1), pct, band, ageM};
+}
 function renderGrowth(){
   growthChart('chartW','w','#f4628e');
   growthChart('chartH','h','#3aa3b8');
   growthChart('chartHc','hc','#e0922f');
+  const pc=document.getElementById('growthPct');
+  if(pc){
+    const b=DB.baby||{};
+    if(!b.sex){ pc.innerHTML='<div class="muted"><a onclick="goTab(\'tab-baby\')" style="color:var(--pink-d);font-weight:700;cursor:pointer">아이 정보에서 성별</a>을 설정하면 또래 비교(%)를 볼 수 있어요.</div>'; }
+    else {
+      const rows=[['w','⚖️ 몸무게','kg'],['h','📏 키','cm'],['hc','🧠 머리둘레','cm']].map(([k,nm,u])=>{
+        const c=growthCompare(k); if(!c) return '';
+        return `<div class="dash-row"><span>${nm}</span><span style="text-align:right"><b>약 ${c.pct}백분위</b><br><span class="muted" style="font-size:12px">${c.band} · 또래평균 ${c.med}${u}</span></span></div>`;
+      }).filter(Boolean).join('');
+      pc.innerHTML = rows || '<div class="muted">측정 기록을 추가하면 또래 비교가 나와요.</div>';
+      pc.innerHTML += '<p class="muted" style="margin-top:8px">WHO 표준 기반 <b>추정치</b>예요(참고용). 정확한 평가는 <a href="https://www.infantchart.com/weight-for-age/" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700">공식 성장 계산기</a>나 소아과에서 확인하세요.</p>';
+    }
+  }
   const ul=document.getElementById('growthList'); if(!ul) return;
   if(!DB.growth.length){ ul.innerHTML='<div class="empty">아직 성장 기록이 없어요 📈</div>'; return; }
   const sorted=[...DB.growth].sort((a,b)=>b.d.localeCompare(a.d));
@@ -1346,11 +1397,12 @@ function renderGrowth(){
 }
 
 /* ---------- 아이 정보 + 발달 ---------- */
-let _bbUse='name';
+let _bbUse='name', _bbSex='';
 function pickUse(btn){ _bbUse=btn.dataset.u; [...btn.parentNode.children].forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
+function pickSex(btn){ _bbSex=btn.dataset.s; [...btn.parentNode.children].forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
 function saveBaby(){
-  DB.baby={ name:val('bbName').trim(), nick:val('bbNick').trim(), birth:val('bbBirth'), use:_bbUse };
-  save(); applyBaby(); renderDev(); alert('저장했어요!');
+  DB.baby={ name:val('bbName').trim(), nick:val('bbNick').trim(), birth:val('bbBirth'), use:_bbUse, sex:_bbSex };
+  save(); applyBaby(); renderDev(); renderGrowth(); renderDash(); alert('저장했어요!');
 }
 function babyName(){ const b=DB.baby||{}; const n=(b.use==='nick')?(b.nick||b.name):(b.name||b.nick); return n||''; }
 function ageInfo(){
@@ -1370,6 +1422,8 @@ function applyBaby(){
     document.getElementById('bbBirth').value=b.birth||'';
     _bbUse=b.use||'name';
     document.querySelectorAll('#bbUse button').forEach(x=>x.classList.toggle('on',x.dataset.u===_bbUse));
+    _bbSex=b.sex||'';
+    document.querySelectorAll('#bbSex button').forEach(x=>x.classList.toggle('on',x.dataset.s===_bbSex));
   }
   const vb=document.getElementById('birthDate'); if(vb && b.birth && !vb.value) vb.value=b.birth;
 }
