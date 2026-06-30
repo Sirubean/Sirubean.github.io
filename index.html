@@ -369,10 +369,18 @@
     <div id="supplyList"></div>
   </section>
 
-  <!-- ============ 지원금 (준비중, 3단계) ============ -->
+  <!-- ============ 지원금 안내 (서울 관악구) ============ -->
   <section class="tab" id="tab-policy">
     <a class="backlink" onclick="goTab('tab-more')">← 더보기</a>
-    <div class="card"><h2>🏛️ 지원금 안내</h2><p class="muted">곧 추가됩니다.</p></div>
+    <div class="card" style="background:#fff4e0">
+      <h2 style="margin:0 0 4px">🏛️ 지원금 안내 <span class="muted" style="font-weight:600">· 서울 관악구</span></h2>
+      <p class="muted" style="margin:0">2026년 기준 참고용이에요. 금액·시기·연령 기준은 바뀔 수 있으니 신청 전 공식 사이트에서 꼭 확인하세요.</p>
+    </div>
+    <div id="policyList"></div>
+    <div class="card">
+      <a href="https://www.gwanak.go.kr/site/gwanak/06/10614011300002025051402.jsp" target="_blank" rel="noopener" style="color:var(--blue);font-weight:700">📋 관악구 출산·양육 연령별 지원 전체 보기 →</a>
+      <div class="muted" style="margin-top:6px">문의: 관악구 성평등가족과 ☎ 02-879-6133</div>
+    </div>
   </section>
 
   <!-- ============ 분유 ============ -->
@@ -1422,7 +1430,55 @@ function renderSupplies(){
   }).join('');
   DB.supplies.forEach(it=>{ const e=document.getElementById('pDate_'+it.id); if(e&&!e.value) e.value=todayLocal(); });
 }
-function renderPolicy(){}  /* 3단계에서 구현 */
+function policyItems(a){
+  const b=DB.baby||{}; const birth=b.birth;
+  const bd=birth?new Date(birth+'T00:00'):null;
+  const today=new Date(todayLocal()+'T00:00');
+  const daysTo=dt=>Math.round((dt-today)/86400000);
+  const deadlineChip=dl=> dl==null?'' : dl<0?'<span class="chip past">마감</span>' : dl<=14?`<span class="chip soon">D-${dl}</span>` : '<span class="chip today">신청 가능</span>';
+  const items=[];
+  const mk=(name,amount,where,link,timing,chip)=>items.push({name,amount,where,link,timing,chip:chip||''});
+  // 첫만남이용권
+  let c1=''; if(bd){ const d=new Date(bd); d.setFullYear(d.getFullYear()+1); c1=deadlineChip(daysTo(d)); }
+  mk('🎀 첫만남이용권','첫째 200만원 · 둘째 이상 300만원 (바우처)','복지로 · 정부24 · 동주민센터','https://www.bokjiro.go.kr','출생 후 1년 이내 신청 (사용은 24개월까지)',c1);
+  // 부모급여
+  let pchip=''; if(a){ pchip = a.months<12?'<span class="chip today">0세 · 월 100만</span>' : a.months<24?'<span class="chip today">1세 · 월 50만</span>' : '<span class="chip past">대상 종료</span>'; }
+  mk('💰 부모급여','0세 월 100만원 · 1세 월 50만원','복지로 · 동주민센터','https://www.bokjiro.go.kr','출생 후 60일 이내 신청(소급 지원)',pchip);
+  // 아동수당
+  let achip = a ? (a.months<96?'<span class="chip today">대상</span>':'<span class="chip past">종료</span>') : '';
+  mk('👶 아동수당','월 10만원 (만 8세 미만)','복지로 · 동주민센터','https://www.bokjiro.go.kr','출생 후 바로 신청',achip);
+  // 서울형 산후조리경비
+  let sc=''; if(bd){ const d=new Date(bd); d.setDate(d.getDate()+180); sc=deadlineChip(daysTo(d)); }
+  mk('🍲 서울형 산후조리경비','첫째 100 · 둘째 120 · 셋째 이상 150만원','탄생육아 몽땅정보통','https://umppa.seoul.go.kr','출생 후 180일 이내 신청',sc);
+  // 임산부 교통비
+  let tc=''; if(bd){ const d=new Date(bd); d.setDate(d.getDate()+180); tc=deadlineChip(daysTo(d)); }
+  mk('🚌 임산부 교통비','70만원 (바우처)','탄생육아 몽땅정보통','https://umppa.seoul.go.kr','임신 중 ~ 출산 후 6개월 신청',tc);
+  // 관악 출생축하용품
+  mk('🎁 관악구 출생축하용품','2만원 상당 물품','관악구 동주민센터','https://www.gwanak.go.kr','출생 후 신청','');
+  // 가정양육수당
+  let hc=''; if(a){ hc = a.months<24?'<span class="chip">24개월부터</span>' : a.months<86?'<span class="chip today">대상</span>' : '<span class="chip past">종료</span>'; }
+  mk('🏠 가정양육수당','월 10만원 (어린이집·유치원 미이용 시)','복지로 · 동주민센터','https://www.bokjiro.go.kr','24~86개월, 부모급여 종료 후',hc);
+  // 깡충깡충 성장양육지원금 (관악)
+  let kc=''; if(a){ const yr=Math.floor(a.months/12); kc = yr<2?'<span class="chip">만 2세부터</span>' : yr<=4?'<span class="chip today">대상</span>' : '<span class="chip past">종료</span>'; }
+  mk('🐰 깡충깡충 성장양육지원금','만 2·3·4세 각 1회 30만원 (관악사랑상품권)','정부24 · 동주민센터','https://www.gov.kr','만 2세부터 매년 (관악구)',kc);
+  return items;
+}
+function renderPolicy(){
+  const wrap=document.getElementById('policyList'); if(!wrap) return;
+  const a=ageInfo();
+  let html='';
+  if(!a) html+='<div class="card"><p class="muted" style="margin:0">아이 정보의 <b>생년월일</b>을 입력하면 신청 시기·마감일(D-day)까지 맞춤으로 보여드려요. <a onclick="goTab(\'tab-baby\')" style="color:var(--pink-d);font-weight:700;cursor:pointer">아이 정보 입력 →</a></p></div>';
+  html+=policyItems(a).map(it=>`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <h2 style="margin:0;font-size:15px">${it.name}</h2>${it.chip}
+    </div>
+    <div style="font-size:14px;margin-top:5px;color:var(--pink-d);font-weight:800">${it.amount}</div>
+    <div class="li-sub" style="margin-top:4px">🗓️ ${it.timing}</div>
+    <div class="li-sub" style="margin-top:2px">📍 ${it.where}</div>
+    <a href="${it.link}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:var(--blue);font-weight:700;font-size:13px">신청·자세히 보기 →</a>
+  </div>`).join('');
+  wrap.innerHTML=html;
+}
 
 /* ---------- util ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -1439,7 +1495,7 @@ function refreshHome(){ _selDay=new Date().getDay(); renderDayBar(); renderChore
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshHome(); });
 window.addEventListener('focus', refreshHome);
 renderDayPick(); renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); renderGrowth();
-applyBaby(); renderDev(); renderSupplies();
+applyBaby(); renderDev(); renderSupplies(); renderPolicy();
 initFirebase();
 </script>
 </body>
