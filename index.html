@@ -636,7 +636,7 @@ function renderEvents(){
     else chip=`<span class="chip">D-${dd}</span>`;
     return `<li class="${ev.done?'done':''}">
       <div class="check ${ev.done?'on':''}" onclick="toggleEvent(${i})">${ev.done?'✓':''}</div>
-      <div class="li-body">
+      <div class="li-body" onclick="editEvent('${ev.id}')" style="cursor:pointer">
         <div class="li-title">${chip}${esc(ev.t)}</div>
         <div class="li-sub">${ev.d}${ev.m?' · '+esc(ev.m):''}</div>
       </div>
@@ -644,6 +644,29 @@ function renderEvents(){
     </li>`;
   }).join('');
 }
+
+function editEvent(eid){
+  const e=DB.events.find(x=>x.id===eid); if(!e) return;
+  let inner=`<h3>📅 일정 수정</h3>
+    <label>날짜</label><input class="field" type="date" id="edDate" value="${e.d}">
+    <label>내용</label><input class="field" id="edTitle" value="${esc(e.t)}">
+    <label>메모</label><input class="field" id="edMemo" value="${esc(e.m||'')}">
+    <div class="row" style="margin-top:18px">
+      <button class="btn ghost" onclick="closeRec()">취소</button>
+      <button class="btn" onclick="saveEventEdit('${eid}')">저장</button>
+    </div>
+    <button class="btn ghost" style="width:100%;margin-top:8px;color:#d05;border-color:#f3c2cf" onclick="delEventById('${eid}')">이 일정 삭제</button>`;
+  document.getElementById('modalBody').innerHTML=inner;
+  document.getElementById('modalBg').classList.add('on');
+}
+function saveEventEdit(eid){
+  const e=DB.events.find(x=>x.id===eid); if(!e) return;
+  const d=val('edDate'), t=val('edTitle').trim();
+  if(!d||!t){ alert('날짜와 내용을 입력하세요.'); return; }
+  e.d=d; e.t=t; e.m=val('edMemo').trim();
+  save(); closeRec(); renderEvents();
+}
+function delEventById(eid){ DB.events=DB.events.filter(x=>x.id!==eid); save(); closeRec(); renderEvents(); }
 
 /* ---------- 예방접종 자동 생성 (국가예방접종 표준일정) ---------- */
 const VAX = [
@@ -700,7 +723,7 @@ function renderNotes(){
     else chip=`<span class="chip">D-${dd}</span>`;
     return `<li class="${n.done?'done':''}">
       <div class="check ${n.done?'on':''}" onclick="toggleNote('${n.id}')">${n.done?'✓':''}</div>
-      <div class="li-body">
+      <div class="li-body" onclick="editNote('${n.id}')" style="cursor:pointer">
         <div class="li-title">${chip}${esc(n.t)}</div>
         <div class="li-sub">${n.d}${n.tm?' · '+n.tm:''}</div>
       </div>
@@ -708,6 +731,30 @@ function renderNotes(){
     </li>`;
   }).join('');
 }
+function editNote(nid){
+  const n=DB.notes.find(x=>x.id===nid); if(!n) return;
+  let inner=`<h3>📌 메모 수정</h3>
+    <div class="row">
+      <input class="field" type="date" id="enDate" value="${n.d}">
+      <input class="field" type="time" id="enTime" value="${n.tm||''}" style="flex:0 0 40%">
+    </div>
+    <label>내용</label><input class="field" id="enText" value="${esc(n.t)}">
+    <div class="row" style="margin-top:18px">
+      <button class="btn ghost" onclick="closeRec()">취소</button>
+      <button class="btn" onclick="saveNoteEdit('${nid}')">저장</button>
+    </div>
+    <button class="btn ghost" style="width:100%;margin-top:8px;color:#d05;border-color:#f3c2cf" onclick="delNoteById('${nid}')">이 메모 삭제</button>`;
+  document.getElementById('modalBody').innerHTML=inner;
+  document.getElementById('modalBg').classList.add('on');
+}
+function saveNoteEdit(nid){
+  const n=DB.notes.find(x=>x.id===nid); if(!n) return;
+  const d=val('enDate'), tx=val('enText').trim();
+  if(!d||!tx){ alert('날짜와 내용을 입력하세요.'); return; }
+  n.d=d; n.tm=val('enTime'); n.t=tx;
+  save(); closeRec(); renderNotes();
+}
+function delNoteById(nid){ DB.notes=DB.notes.filter(x=>x.id!==nid); save(); closeRec(); renderNotes(); }
 
 /* ---------- 분유 ---------- */
 function renderMilk(){
@@ -772,6 +819,7 @@ function recView(v){
   if(v==='st') renderStats();
 }
 let _amt=120;
+let _editId=null;   // 기록 수정 중인 항목 id (null이면 새 기록)
 let _base={};   // 슬라이더 기준 시각 (모달 열 때의 '지금')
 function fmtTimeKR(d){ let h=d.getHours(); const ap=h<12?'오전':'오후'; let hh=h%12; if(hh===0)hh=12; return ap+' '+hh+':'+pad(d.getMinutes()); }
 function fmtLocal(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
@@ -834,8 +882,9 @@ function addMemoChip(w){
   const parts=cur?cur.split(/[,\s]+/):[];
   if(!parts.includes(w)) el.value = cur ? cur+' '+w : w;
 }
-function openRec(type){
-  let inner='<h3>'+REC[type].ic+' '+REC[type].name+' 기록</h3>';
+function openRec(type, rec){
+  _editId = rec ? rec.id : null;
+  let inner='<h3>'+REC[type].ic+' '+REC[type].name+(rec?' 수정':' 기록')+'</h3>';
   if(type==='feed'){
     inner+=timeControl('recTime','시간');
     inner+=`<label>먹은 양</label>
@@ -861,7 +910,7 @@ function openRec(type){
       <div class="memo-chips" style="margin-bottom:7px">${['설사','변비','발진'].map(w=>`<button type="button" onclick="addMemoChip('${w}')">${w}</button>`).join('')}</div>
       <input class="field" id="recMemo" placeholder="메모">`;
   } else if(type==='sleep'){
-    const og=ongoingSleep();
+    const og = rec ? null : ongoingSleep();
     if(og){
       inner+=`<div class="calc-out" style="border-color:#8a7fc2;color:#6b5fb0;margin-top:0">😴 ${og.start.slice(11,16)}부터 수면 중
         <br><button class="btn" style="background:#8a7fc2;margin-top:8px" onclick="endSleep('${og.id}')">지금 깨어남 기록</button></div>
@@ -879,25 +928,35 @@ function openRec(type){
     <button class="btn ghost" onclick="closeRec()">취소</button>
     <button class="btn" onclick="saveRec('${type}')">저장</button>
   </div>`;
+  if(rec) inner+=`<button class="btn ghost" style="width:100%;margin-top:8px;color:#d05; border-color:#f3c2cf" onclick="deleteRec('${rec.id}')">이 기록 삭제</button>`;
   document.getElementById('modalBody').innerHTML=inner;
-  const now=new Date();
-  ['recTime','recStart'].forEach(idd=>{ const e=document.getElementById(idd); if(e){ _base[idd]=new Date(now); e.value=fmtLocal(now); const s=document.getElementById('sl_'+idd); if(s) s.value=0; bigUpdate(idd); } });
-  if(type==='feed'){ _amt=120; setAmtDisplay(); }
+  const baseDate = rec ? new Date(type==='sleep' ? rec.start : rec.ts) : new Date();
+  ['recTime','recStart'].forEach(idd=>{ const e=document.getElementById(idd); if(e){ _base[idd]=new Date(baseDate); e.value=fmtLocal(baseDate); const s=document.getElementById('sl_'+idd); if(s) s.value=0; bigUpdate(idd); } });
+  if(type==='feed'){ _amt = rec ? (rec.amount||0) : 120; setAmtDisplay(); if(rec){ const mm=document.getElementById('recMemo'); if(mm) mm.value=rec.memo||''; } }
+  if(type==='diaper' && rec){
+    const k=document.getElementById('recKind'); if(k) k.value=rec.kind||'소변';
+    document.querySelectorAll('.pill-row .pill').forEach(b=>b.classList.toggle('on', b.dataset.k===(rec.kind||'소변')));
+    const mm=document.getElementById('recMemo'); if(mm) mm.value=rec.memo||'';
+  }
+  if(type==='sleep' && rec){ const ee=document.getElementById('recEnd'); if(ee){ ee.value=rec.end||''; bigUpdate('recEnd'); } }
   document.getElementById('modalBg').classList.add('on');
 }
+function editRec(rid){ const r=DB.logs.find(x=>x.id===rid); if(r) openRec(r.type, r); }
 function closeRec(){ document.getElementById('modalBg').classList.remove('on'); }
 function saveRec(type){
-  let rec={id:id(), type};
+  let rec={id: _editId || id(), type};
   if(type==='feed'){ rec.ts=val('recTime'); rec.amount=parseInt(val('recAmt'))||0; rec.memo=val('recMemo').trim(); }
   else if(type==='diaper'){ rec.ts=val('recTime'); rec.kind=val('recKind'); rec.memo=val('recMemo').trim(); }
   else if(type==='sleep'){ rec.ts=val('recStart'); rec.start=val('recStart'); rec.end=val('recEnd')||null; if(rec.end && new Date(rec.end)<new Date(rec.start)){ alert('깬 시간이 잠든 시간보다 빠를 수 없어요.'); return; } }
   else if(type==='bath'){ rec.ts=val('recTime'); }
   if(!rec.ts){ alert('시간을 입력하세요.'); return; }
-  DB.logs.push(rec); save(); closeRec(); renderRecords();
+  if(_editId){ const i=DB.logs.findIndex(x=>x.id===_editId); if(i>=0) DB.logs[i]=rec; else DB.logs.push(rec); }
+  else DB.logs.push(rec);
+  _editId=null; save(); closeRec(); renderRecords();
 }
 function val(id){ const e=document.getElementById(id); return e?e.value:''; }
 function endSleep(rid){ const r=DB.logs.find(x=>x.id===rid); if(r) r.end=localNowStr(); save(); closeRec(); renderRecords(); }
-function deleteRec(rid){ DB.logs=DB.logs.filter(r=>r.id!==rid); save(); renderRecords(); }
+function deleteRec(rid){ DB.logs=DB.logs.filter(r=>r.id!==rid); _editId=null; save(); closeRec(); renderRecords(); }
 
 function dateHeader(d){
   const y=new Date(); y.setDate(y.getDate()-1);
@@ -928,9 +987,11 @@ function renderRecords(){
     else if(r.type==='sleep') detail= r.end? (durText(durMin(r.start,r.end))+' · '+r.start.slice(11,16)+'~'+r.end.slice(11,16)) : '진행 중 💤';
     else if(r.type==='bath') detail='목욕 완료';
     html+=`<div style="display:flex;align-items:center;gap:9px;padding:9px 2px;border-bottom:1px solid var(--line)">
-      <div style="font-size:20px;width:28px;text-align:center">${m.ic}</div>
-      <div style="width:44px;font-weight:700;font-size:13px;color:var(--sub)">${(r.ts||'').slice(11,16)}</div>
-      <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px;color:${m.color}">${m.name}</div><div class="li-sub">${detail}</div></div>
+      <div onclick="editRec('${r.id}')" style="flex:1;min-width:0;display:flex;align-items:center;gap:9px;cursor:pointer">
+        <div style="font-size:20px;width:28px;text-align:center">${m.ic}</div>
+        <div style="width:44px;font-weight:700;font-size:13px;color:var(--sub)">${(r.ts||'').slice(11,16)}</div>
+        <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px;color:${m.color}">${m.name}</div><div class="li-sub">${detail}</div></div>
+      </div>
       <button class="iconbtn" onclick="deleteRec('${r.id}')">🗑️</button>
     </div>`;
   });
