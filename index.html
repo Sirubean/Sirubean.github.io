@@ -15,8 +15,14 @@
     --bg:#fff7fa; --card:#ffffff; --ink:#3a2e35; --sub:#9a8e95;
     --pink:#ff8fab; --pink-d:#f4628e; --mint:#6fd0c4; --blue:#7ab8ef;
     --line:#f0e3ea; --shadow:0 4px 16px rgba(244,98,142,.10);
-    --done:#cdeee6;
+    --done:#cdeee6; --surface:#ffffff; --field:#fffafc;
   }
+  body.dark{
+    --bg:#16131d; --card:#221d2b; --ink:#ece6f2; --sub:#a99cbb;
+    --line:#352c41; --surface:#2a2333; --field:#251f30; --done:#2e4a44;
+    --shadow:0 4px 16px rgba(0,0,0,.3);
+  }
+  body.dark header{ background:linear-gradient(135deg,#5a3144,#7a3a52); box-shadow:0 4px 14px rgba(0,0,0,.4); }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; padding:0;}
   body{
@@ -44,7 +50,7 @@
 
   /* inputs */
   input,select,button,textarea{font-family:inherit; font-size:15px;}
-  .field{width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:12px; background:#fffafc; color:var(--ink); outline:none;}
+  .field{width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:12px; background:var(--field); color:var(--ink); outline:none;}
   .field:focus{border-color:var(--pink);}
   .row{display:flex; gap:8px;}
   .row>*{flex:1;}
@@ -52,7 +58,7 @@
   .btn:active{transform:scale(.97);}
   .btn.mint{background:var(--mint);}
   .btn.blue{background:var(--blue);}
-  .btn.ghost{background:#fff; color:var(--pink-d); border:1.5px solid var(--pink);}
+  .btn.ghost{background:var(--surface); color:var(--pink-d); border:1.5px solid var(--pink);}
   .btn.sm{padding:7px 10px; font-size:13px; border-radius:10px;}
   .iconbtn{background:none; border:none; font-size:18px; cursor:pointer; color:var(--sub); padding:4px;}
 
@@ -60,7 +66,7 @@
   ul.list{list-style:none; margin:0; padding:0;}
   ul.list li{display:flex; align-items:center; gap:10px; padding:11px 4px; border-bottom:1px solid var(--line);}
   ul.list li:last-child{border-bottom:none;}
-  .check{width:24px; height:24px; border-radius:8px; border:2px solid var(--pink); flex:0 0 auto; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px; color:#fff; background:#fff;}
+  .check{width:24px; height:24px; border-radius:8px; border:2px solid var(--pink); flex:0 0 auto; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px; color:#fff; background:var(--surface);}
   .check.on{background:var(--mint); border-color:var(--mint);}
   .li-body{flex:1; min-width:0;}
   .li-title{font-size:15px; font-weight:600; word-break:break-word;}
@@ -77,7 +83,7 @@
   th,td{padding:9px 6px; text-align:center; border-bottom:1px solid var(--line);}
   th{font-size:12px; color:var(--sub); font-weight:700;}
   td.ml{font-weight:800; color:var(--pink-d);}
-  .tbl-input{width:100%; border:1px solid var(--line); border-radius:8px; padding:6px; text-align:center; font-size:14px; background:#fffafc;}
+  .tbl-input{width:100%; border:1px solid var(--line); border-radius:8px; padding:6px; text-align:center; font-size:14px; background:var(--field);}
 
   .calc-out{background:#f4fbf9; border:1.5px dashed var(--mint); border-radius:14px; padding:14px; text-align:center; margin-top:10px;}
   .calc-out b{font-size:26px; color:#22a58e;}
@@ -91,7 +97,7 @@
   .recgrid .ic{font-size:23px;}
   .rec-feed{background:#f0a84b;} .rec-diaper{background:#b08968;} .rec-sleep{background:#8a7fc2;} .rec-bath{background:#5bbccf;}
   .sumrow{display:flex; gap:8px; margin-bottom:8px;}
-  .sumcard{flex:1; background:#fff7fb; border:1px solid var(--line); border-radius:14px; padding:10px 6px; text-align:center;}
+  .sumcard{flex:1; background:var(--field); border:1px solid var(--line); border-radius:14px; padding:10px 6px; text-align:center;}
   .sumcard .lab{font-size:11px; color:var(--sub);}
   .sumcard .val{font-size:14.5px; font-weight:800; margin-top:3px;}
   .stat-bar{height:11px; border-radius:6px; background:var(--line); overflow:hidden;}
@@ -104,24 +110,24 @@
   /* modal */
   .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:flex-end; z-index:50;}
   .modal-bg.on{display:flex;}
-  .modal{background:#fff; width:100%; max-width:560px; margin:0 auto; border-radius:22px 22px 0 0; padding:20px 18px calc(22px + env(safe-area-inset-bottom)); animation:up .25s ease;}
+  .modal{background:var(--surface); width:100%; max-width:560px; margin:0 auto; border-radius:22px 22px 0 0; padding:20px 18px calc(22px + env(safe-area-inset-bottom)); animation:up .25s ease;}
   @keyframes up{from{transform:translateY(50px); opacity:.5;} to{transform:none; opacity:1;}}
   .modal h3{margin:0 0 8px; font-size:17px;}
   .modal label{display:block; font-size:12.5px; color:var(--sub); margin:13px 0 5px; font-weight:700;}
   /* 큼직한 입력 컨트롤 */
   .time-big{font-size:25px; font-weight:800; text-align:center; color:var(--pink-d); margin:2px 0 8px;}
   .time-quick{display:flex; gap:6px;}
-  .time-quick button{flex:1; padding:9px 2px; border-radius:11px; border:1.5px solid var(--line); background:#fff; font-weight:700; font-size:13px; color:var(--sub); cursor:pointer;}
+  .time-quick button{flex:1; padding:9px 2px; border-radius:11px; border:1.5px solid var(--line); background:var(--surface); font-weight:700; font-size:13px; color:var(--sub); cursor:pointer;}
   .time-quick button:active{background:#fff0f4;}
   .amt-big{font-size:32px; font-weight:800; text-align:center; color:#22a58e; margin:6px 0;}
   .amt-quick{display:flex; gap:8px; margin-bottom:9px;}
   .amt-quick button{flex:1; padding:11px; border-radius:12px; border:none; background:#eaf6f3; color:#22a58e; font-weight:800; font-size:18px; cursor:pointer;}
   .amt-quick button:active{transform:scale(.97);}
   .amt-chips,.memo-chips{display:flex; flex-wrap:wrap; gap:6px;}
-  .amt-chips button,.memo-chips button{padding:8px 13px; border-radius:999px; border:1.5px solid var(--line); background:#fff; font-weight:700; font-size:13px; color:var(--ink); cursor:pointer;}
+  .amt-chips button,.memo-chips button{padding:8px 13px; border-radius:999px; border:1.5px solid var(--line); background:var(--surface); font-weight:700; font-size:13px; color:var(--ink); cursor:pointer;}
   .amt-chips button.on{background:var(--mint); color:#fff; border-color:var(--mint);}
   .pill-row{display:flex; gap:8px;}
-  .pill{flex:1; padding:17px 4px; border-radius:14px; border:2px solid var(--line); background:#fff; font-weight:800; font-size:16px; color:var(--sub); cursor:pointer;}
+  .pill{flex:1; padding:17px 4px; border-radius:14px; border:2px solid var(--line); background:var(--surface); font-weight:800; font-size:16px; color:var(--sub); cursor:pointer;}
   .pill.on{border-color:var(--pink); background:#fff0f4; color:var(--pink-d);}
   /* 드래그 슬라이더 */
   input[type=range].slider{ -webkit-appearance:none; appearance:none; width:100%; height:7px; border-radius:7px; background:var(--line); outline:none; margin:6px 0 2px; }
@@ -133,26 +139,28 @@
 
   /* bottom nav */
   nav{position:fixed; left:0; right:0; bottom:0; z-index:30;
-    background:#fff; display:flex; border-top:1px solid var(--line);
+    background:var(--surface); display:flex; border-top:1px solid var(--line);
     padding-bottom:env(safe-area-inset-bottom); box-shadow:0 -3px 16px rgba(0,0,0,.05);}
   nav button{flex:1; background:none; border:none; padding:9px 0 8px; cursor:pointer; color:var(--sub); font-size:11px; font-weight:700; display:flex; flex-direction:column; align-items:center; gap:3px;}
   nav button .ic{font-size:22px;}
   nav button.active{color:var(--pink-d);}
   .fab-note{font-size:11.5px; color:var(--sub); text-align:center; margin:2px 0 16px;}
   .seg{display:flex; gap:6px; margin-bottom:12px;}
-  .seg button{flex:1; padding:8px; border-radius:10px; border:1.5px solid var(--line); background:#fff; color:var(--sub); font-weight:700; font-size:13px; cursor:pointer;}
+  .seg button{flex:1; padding:8px; border-radius:10px; border:1.5px solid var(--line); background:var(--surface); color:var(--sub); font-weight:700; font-size:13px; cursor:pointer;}
   .seg button.on{background:var(--pink); color:#fff; border-color:var(--pink);}
   .daybar{display:flex; gap:4px; margin-bottom:12px;}
-  .daybar button{flex:1; padding:10px 0; border-radius:11px; border:1.5px solid var(--line); background:#fff; font-weight:800; font-size:13px; color:var(--sub); cursor:pointer; position:relative;}
+  .daybar button{flex:1; padding:10px 0; border-radius:11px; border:1.5px solid var(--line); background:var(--surface); font-weight:800; font-size:13px; color:var(--sub); cursor:pointer; position:relative;}
   .daybar button.on{background:var(--pink); color:#fff; border-color:var(--pink);}
   .todot{position:absolute; bottom:4px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:currentColor; opacity:.75;}
   .sync-btn{position:absolute; top:calc(15px + env(safe-area-inset-top)); right:16px; background:rgba(255,255,255,.25); color:#fff; border:none; border-radius:999px; padding:7px 12px; font-size:12px; font-weight:800; cursor:pointer;}
-  .sync-btn.on{background:#fff; color:var(--pink-d);}
+  .sync-btn.on{background:var(--surface); color:var(--pink-d);}
+  .dark-btn{position:absolute; top:calc(15px + env(safe-area-inset-top)); left:16px; background:rgba(255,255,255,.25); color:#fff; border:none; border-radius:999px; width:34px; height:34px; font-size:15px; cursor:pointer;}
 </style>
 </head>
 <body>
 
 <header>
+  <button class="dark-btn" id="darkBtn" onclick="toggleDark()">🌙</button>
   <button class="sync-btn" id="syncBtn" onclick="openSync()">🔗 연동</button>
   <h1 id="hdrTitle">🍼 우리아이 케어</h1>
   <p id="hdrSub">집안일 · 일정 · 분유를 한 곳에서</p>
@@ -237,6 +245,7 @@
     <div class="seg">
       <button class="on" id="seg-tl" onclick="recView('tl')">📋 타임라인</button>
       <button id="seg-st" onclick="recView('st')">📊 통계</button>
+      <button id="seg-gr" onclick="recView('gr')">📈 성장</button>
     </div>
 
     <div id="recTimeline">
@@ -275,6 +284,23 @@
         <h2>📈 최근 7일 (수면시간 · 수유횟수)</h2>
         <div id="statWeek"></div>
       </div>
+    </div>
+
+    <div id="recGrowth" style="display:none">
+      <div class="card">
+        <h2>📈 성장 기록 추가</h2>
+        <input class="field" type="date" id="grDate">
+        <div class="row" style="margin-top:8px">
+          <input class="field" id="grW" type="number" inputmode="decimal" placeholder="몸무게 kg">
+          <input class="field" id="grH" type="number" inputmode="decimal" placeholder="키 cm">
+          <input class="field" id="grHc" type="number" inputmode="decimal" placeholder="머리 cm">
+        </div>
+        <button class="btn" style="width:100%;margin-top:10px" onclick="addGrowth()">＋ 기록 추가</button>
+      </div>
+      <div class="card"><h2>⚖️ 몸무게 (kg)</h2><div id="chartW"></div></div>
+      <div class="card"><h2>📏 키 (cm)</h2><div id="chartH"></div></div>
+      <div class="card"><h2>🧠 머리둘레 (cm)</h2><div id="chartHc"></div></div>
+      <div class="card"><h2>📋 기록 목록</h2><ul class="list" id="growthList"></ul></div>
     </div>
   </section>
 
@@ -370,6 +396,7 @@ function migrate(d){
   }
   d.logs ??= [];
   d.notes ??= [];
+  d.growth ??= [];
   delete d.chores; // 구버전 정리
   return d;
 }
@@ -401,6 +428,7 @@ function seed(){
     choreDone: {},
     logs:[],
     notes:[],
+    growth:[],
     events:[],
     milk: defaultMilk(),
     lastReset: todayStr()
@@ -489,7 +517,7 @@ function openSync(){
   document.getElementById('modalBg').classList.add('on');
 }
 function renderAll(){
-  try{ renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); }catch(e){ console.warn(e); }
+  try{ renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); renderGrowth(); }catch(e){ console.warn(e); }
 }
 
 /* ---------- nav ---------- */
@@ -814,9 +842,17 @@ function ongoingSleep(){ return DB.logs.find(r=>r.type==='sleep' && !r.end); }
 function recView(v){
   document.getElementById('recTimeline').style.display = v==='tl'?'block':'none';
   document.getElementById('recStats').style.display = v==='st'?'block':'none';
+  document.getElementById('recGrowth').style.display = v==='gr'?'block':'none';
   document.getElementById('seg-tl').classList.toggle('on', v==='tl');
   document.getElementById('seg-st').classList.toggle('on', v==='st');
+  document.getElementById('seg-gr').classList.toggle('on', v==='gr');
   if(v==='st') renderStats();
+  if(v==='gr') renderGrowth();
+}
+function toggleDark(){
+  const on=document.body.classList.toggle('dark');
+  localStorage.setItem('babycare_dark', on?'1':'0');
+  document.getElementById('darkBtn').textContent = on?'☀️':'🌙';
 }
 let _amt=120;
 let _editId=null;   // 기록 수정 중인 항목 id (null이면 새 기록)
@@ -1083,6 +1119,74 @@ function renderClock(){
     `<span><i style="background:#8a7fc2"></i>수면</span><span><i style="background:#e0922f"></i>분유</span><span><i style="background:#9c7355"></i>기저귀</span><span><i style="background:#3aa3b8"></i>목욕</span>`;
 }
 
+/* ---------- 성장 기록/곡선 ---------- */
+function addGrowth(){
+  const d=val('grDate'), w=val('grW'), h=val('grH'), hc=val('grHc');
+  if(!d){ alert('날짜를 입력하세요.'); return; }
+  if(!w&&!h&&!hc){ alert('몸무게·키·머리둘레 중 하나는 입력하세요.'); return; }
+  DB.growth.push({id:id(), d, w:w?+w:null, h:h?+h:null, hc:hc?+hc:null});
+  ['grW','grH','grHc'].forEach(x=>document.getElementById(x).value='');
+  save(); renderGrowth();
+}
+function delGrowth(gid){ DB.growth=DB.growth.filter(x=>x.id!==gid); save(); renderGrowth(); }
+function delGrowthById(gid){ delGrowth(gid); closeRec(); }
+function editGrowth(gid){
+  const g=DB.growth.find(x=>x.id===gid); if(!g) return;
+  let inner=`<h3>📈 성장 기록 수정</h3>
+    <label>날짜</label><input class="field" type="date" id="egDate" value="${g.d}">
+    <label>몸무게 (kg)</label><input class="field" type="number" inputmode="decimal" id="egW" value="${g.w??''}">
+    <label>키 (cm)</label><input class="field" type="number" inputmode="decimal" id="egH" value="${g.h??''}">
+    <label>머리둘레 (cm)</label><input class="field" type="number" inputmode="decimal" id="egHc" value="${g.hc??''}">
+    <div class="row" style="margin-top:16px"><button class="btn ghost" onclick="closeRec()">취소</button><button class="btn" onclick="saveGrowthEdit('${gid}')">저장</button></div>
+    <button class="btn ghost" style="width:100%;margin-top:8px;color:#d05;border-color:#f3c2cf" onclick="delGrowthById('${gid}')">이 기록 삭제</button>`;
+  document.getElementById('modalBody').innerHTML=inner;
+  document.getElementById('modalBg').classList.add('on');
+}
+function saveGrowthEdit(gid){
+  const g=DB.growth.find(x=>x.id===gid); if(!g) return;
+  const d=val('egDate'); if(!d){ alert('날짜를 입력하세요.'); return; }
+  g.d=d; g.w=val('egW')?+val('egW'):null; g.h=val('egH')?+val('egH'):null; g.hc=val('egHc')?+val('egHc'):null;
+  save(); closeRec(); renderGrowth();
+}
+function growthChart(elId, key, color){
+  const el=document.getElementById(elId); if(!el) return;
+  const pts=DB.growth.filter(g=>g[key]!=null && g[key]!=='').map(g=>({d:g.d, v:+g[key]})).sort((a,b)=>a.d.localeCompare(b.d));
+  if(pts.length===0){ el.innerHTML='<div class="empty" style="padding:6px 0">기록이 없어요</div>'; return; }
+  if(pts.length===1){ el.innerHTML=`<div style="text-align:center;font-weight:800;font-size:20px;color:${color}">${pts[0].v}<span style="font-size:12px;color:var(--sub)"> (${pts[0].d})</span></div>`; return; }
+  const W=300,H=120,pL=30,pR=14,pT=16,pB=22;
+  const vals=pts.map(p=>p.v); let mn=Math.min(...vals), mx=Math.max(...vals); if(mn===mx){mn-=1;mx+=1;} const rg=mx-mn;
+  const X=i=> pL+i*(W-pL-pR)/(pts.length-1);
+  const Y=v=> pT+(1-(v-mn)/rg)*(H-pT-pB);
+  const md=ds=>{const a=ds.split('-');return (+a[1])+'/'+(+a[2]);};
+  let path=pts.map((p,i)=>`${i?'L':'M'} ${X(i).toFixed(1)} ${Y(p.v).toFixed(1)}`).join(' ');
+  let svg=`<svg viewBox="0 0 ${W} ${H}" width="100%">`;
+  svg+=`<text x="2" y="${(Y(mx)+4).toFixed(1)}" font-size="10" fill="#9a8e95">${+mx.toFixed(1)}</text>`;
+  svg+=`<text x="2" y="${(Y(mn)+4).toFixed(1)}" font-size="10" fill="#9a8e95">${+mn.toFixed(1)}</text>`;
+  svg+=`<path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  pts.forEach((p,i)=>{ svg+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3.4" fill="${color}"/>`; });
+  svg+=`<text x="${pL}" y="${H-5}" font-size="10" fill="#9a8e95">${md(pts[0].d)}</text>`;
+  svg+=`<text x="${W-pR}" y="${H-5}" font-size="10" fill="#9a8e95" text-anchor="end">${md(pts[pts.length-1].d)}</text>`;
+  const last=pts[pts.length-1];
+  svg+=`<text x="${X(pts.length-1).toFixed(1)}" y="${(Y(last.v)-7).toFixed(1)}" font-size="11" font-weight="800" fill="${color}" text-anchor="end">${last.v}</text>`;
+  svg+=`</svg>`;
+  el.innerHTML=svg;
+}
+function renderGrowth(){
+  growthChart('chartW','w','#f4628e');
+  growthChart('chartH','h','#3aa3b8');
+  growthChart('chartHc','hc','#e0922f');
+  const ul=document.getElementById('growthList'); if(!ul) return;
+  if(!DB.growth.length){ ul.innerHTML='<div class="empty">아직 성장 기록이 없어요 📈</div>'; return; }
+  const sorted=[...DB.growth].sort((a,b)=>b.d.localeCompare(a.d));
+  ul.innerHTML=sorted.map(g=>`<li>
+    <div class="li-body" onclick="editGrowth('${g.id}')" style="cursor:pointer">
+      <div class="li-title" style="font-size:14px">${g.d}</div>
+      <div class="li-sub">${[g.w?('몸무게 '+g.w+'kg'):'',g.h?('키 '+g.h+'cm'):'',g.hc?('머리 '+g.hc+'cm'):''].filter(Boolean).join(' · ')}</div>
+    </div>
+    <button class="iconbtn" onclick="delGrowth('${g.id}')">🗑️</button>
+  </li>`).join('');
+}
+
 /* ---------- util ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -1090,11 +1194,14 @@ function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 // 날짜 기본값 = 오늘
 document.getElementById('evDate').value = todayStr();
 document.getElementById('noteDate').value = todayStr();
+document.getElementById('grDate').value = todayStr();
+// 다크모드 불러오기
+if(localStorage.getItem('babycare_dark')==='1'){ document.body.classList.add('dark'); document.getElementById('darkBtn').textContent='☀️'; }
 // 날짜가 바뀌면 집안일 자동 초기화 안내(자동으로 끄지 않고 안내만 — 데이터 보존)
 function refreshHome(){ _selDay=new Date().getDay(); renderDayBar(); renderChores(); }
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshHome(); });
 window.addEventListener('focus', refreshHome);
-renderDayPick(); renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords();
+renderDayPick(); renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); renderGrowth();
 initFirebase();
 </script>
 </body>
