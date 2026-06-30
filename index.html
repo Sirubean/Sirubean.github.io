@@ -91,11 +91,17 @@
   .empty{text-align:center; color:var(--sub); padding:18px 0; font-size:13.5px;}
 
   /* 기록 탭 */
-  .recgrid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px;}
-  .recgrid button{border:none; border-radius:14px; padding:13px 4px; color:#fff; font-weight:800; font-size:13px; display:flex; flex-direction:column; gap:5px; align-items:center; cursor:pointer;}
+  .recgrid{display:grid; grid-template-columns:repeat(5,1fr); gap:7px;}
+  .recgrid button{border:none; border-radius:14px; padding:12px 2px; color:#fff; font-weight:800; font-size:12px; display:flex; flex-direction:column; gap:5px; align-items:center; cursor:pointer;}
   .recgrid button:active{transform:scale(.96);}
-  .recgrid .ic{font-size:23px;}
-  .rec-feed{background:#f0a84b;} .rec-diaper{background:#b08968;} .rec-sleep{background:#8a7fc2;} .rec-bath{background:#5bbccf;}
+  .recgrid .ic{font-size:21px;}
+  .rec-feed{background:#f0a84b;} .rec-diaper{background:#b08968;} .rec-sleep{background:#8a7fc2;} .rec-bath{background:#5bbccf;} .rec-nursing{background:#d96aa6;}
+  .dash-quick{display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-top:10px;}
+  .dash-quick button{border:none; border-radius:13px; padding:11px 2px; color:#fff; font-weight:800; font-size:12px; display:flex; flex-direction:column; gap:4px; align-items:center; cursor:pointer;}
+  .dash-quick .ic{font-size:19px;}
+  .dash-row{display:flex; justify-content:space-between; padding:8px 2px; border-bottom:1px solid var(--line); font-size:14px;}
+  .dash-row:last-child{border-bottom:none;}
+  .dash-row b{color:var(--pink-d);}
   .sumrow{display:flex; gap:8px; margin-bottom:8px;}
   .sumcard{flex:1; background:var(--field); border:1px solid var(--line); border-radius:14px; padding:10px 6px; text-align:center;}
   .sumcard .lab{font-size:11px; color:var(--sub);}
@@ -174,8 +180,16 @@
 
 <main>
 
+  <!-- ============ 홈 대시보드 ============ -->
+  <section class="tab active" id="tab-dash">
+    <div class="card" id="dashHead"></div>
+    <div class="card"><h2>📋 오늘 한눈에</h2><div id="dashToday"></div></div>
+    <div class="card" id="dashSupplyCard" style="display:none"><h2>🛒 곧 떨어져요</h2><div id="dashSupply"></div></div>
+    <div class="card" id="dashDevCard" style="display:none"><h2>🌱 이맘때 발달</h2><div id="dashDev"></div></div>
+  </section>
+
   <!-- ============ 집안일 ============ -->
-  <section class="tab active" id="tab-home">
+  <section class="tab" id="tab-home">
     <div class="daybar" id="dayBar"></div>
     <div class="card">
       <h2>🧹 집안일 체크리스트</h2>
@@ -231,6 +245,7 @@
 
   <!-- ============ 메모 (부부 공용 일정) ============ -->
   <section class="tab" id="tab-notes">
+    <a class="backlink" onclick="goTab('tab-more')">← 더보기</a>
     <div class="card">
       <h2>📌 우리 메모 · 일정</h2>
       <p class="muted" style="margin-top:0">부부 공용으로 중요한 일정을 적어두세요.</p>
@@ -259,6 +274,7 @@
         <h2>➕ 지금 기록</h2>
         <div class="recgrid">
           <button class="rec-feed" onclick="openRec('feed')"><span class="ic">🍼</span>분유</button>
+          <button class="rec-nursing" onclick="openRec('nursing')"><span class="ic">🤱</span>모유</button>
           <button class="rec-diaper" onclick="openRec('diaper')"><span class="ic">🧷</span>기저귀</button>
           <button class="rec-sleep" onclick="openRec('sleep')"><span class="ic">😴</span>수면</button>
           <button class="rec-bath" onclick="openRec('bath')"><span class="ic">🛁</span>목욕</button>
@@ -315,6 +331,7 @@
     <div class="card">
       <h2>⋯ 더보기</h2>
       <div class="moregrid">
+        <button onclick="goTab('tab-notes')"><span>📌</span>메모</button>
         <button onclick="goTab('tab-milk')"><span>🍼</span>분유</button>
         <button onclick="goTab('tab-dev')"><span>🌱</span>발달</button>
         <button onclick="goTab('tab-supply')"><span>🛒</span>소모품</button>
@@ -433,10 +450,10 @@
 </label>
 
 <nav>
-  <button class="active" data-tab="tab-home" onclick="go(this)"><span class="ic">🧹</span>집안일</button>
+  <button class="active" data-tab="tab-dash" onclick="go(this)"><span class="ic">🏠</span>홈</button>
+  <button data-tab="tab-home" onclick="go(this)"><span class="ic">🧹</span>집안일</button>
   <button data-tab="tab-cal" onclick="go(this)"><span class="ic">📅</span>일정</button>
   <button data-tab="tab-rec" onclick="go(this)"><span class="ic">📝</span>기록</button>
-  <button data-tab="tab-notes" onclick="go(this)"><span class="ic">📌</span>메모</button>
   <button data-tab="tab-more" onclick="go(this)"><span class="ic">⋯</span>더보기</button>
 </nav>
 
@@ -608,7 +625,7 @@ function openSync(){
   document.getElementById('modalBg').classList.add('on');
 }
 function renderAll(){
-  try{ renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); renderGrowth(); applyBaby(); renderDev(); renderSupplies(); }catch(e){ console.warn(e); }
+  try{ renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); renderGrowth(); applyBaby(); renderDev(); renderSupplies(); renderDash(); }catch(e){ console.warn(e); }
 }
 
 /* ---------- nav ---------- */
@@ -620,6 +637,7 @@ function goTab(id){
   navBtns.forEach(b=>b.classList.remove('active'));
   const direct=navBtns.find(b=>b.dataset.tab===id);
   (direct || navBtns.find(b=>b.dataset.tab==='tab-more')).classList.add('active');
+  if(id==='tab-dash') renderDash();
   if(id==='tab-home') refreshHome();
   if(id==='tab-dev') renderDev();
   if(id==='tab-supply') renderSupplies();
@@ -922,11 +940,23 @@ function calcMilk(){
 
 /* ---------- 기록 (타임라인/통계) ---------- */
 const REC = {
-  feed:  {ic:'🍼', name:'분유',   color:'#e0922f'},
-  diaper:{ic:'🧷', name:'기저귀', color:'#9c7355'},
-  sleep: {ic:'😴', name:'수면',   color:'#7d70b8'},
-  bath:  {ic:'🛁', name:'목욕',   color:'#3aa3b8'},
+  feed:   {ic:'🍼', name:'분유',   color:'#e0922f'},
+  nursing:{ic:'🤱', name:'모유',   color:'#c85a96'},
+  diaper: {ic:'🧷', name:'기저귀', color:'#9c7355'},
+  sleep:  {ic:'😴', name:'수면',   color:'#7d70b8'},
+  bath:   {ic:'🛁', name:'목욕',   color:'#3aa3b8'},
 };
+function ongoingNursing(){ return DB.logs.find(r=>r.type==='nursing' && r.ongoing); }
+function lastFeedAny(){ return [...DB.logs].filter(r=>r.type==='feed'||r.type==='nursing').sort((a,b)=>(b.ts||'').localeCompare(a.ts||''))[0]; }
+function startNursing(side){
+  const now=localNowStr();
+  DB.logs.push({id:id(), type:'nursing', ts:now, start:now, side, dur:null, ongoing:true});
+  save(); closeRec(); renderRecords(); renderDash();
+}
+function endNursing(rid){
+  const r=DB.logs.find(x=>x.id===rid); if(r){ r.dur=Math.max(1,Math.round((new Date()-new Date(r.start))/60000)); r.ongoing=false; }
+  save(); closeRec(); renderRecords(); renderDash();
+}
 function pad(n){ return String(n).padStart(2,'0'); }
 function localNowStr(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function todayLocal(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
@@ -1010,6 +1040,10 @@ function pickKind(btn){
   document.querySelectorAll('.pill-row .pill').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on'); document.getElementById('recKind').value=btn.dataset.k;
 }
+function pickNr(btn){
+  document.querySelectorAll('.pill-row .pill').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on'); document.getElementById('nrSide').value=btn.dataset.k;
+}
 function addMemoChip(w){
   const el=document.getElementById('recMemo'); const cur=el.value.trim();
   const parts=cur?cur.split(/[,\s]+/):[];
@@ -1054,6 +1088,26 @@ function openRec(type, rec){
       <div class="time-big" id="big_recEnd" style="font-size:20px">—</div>
       <div class="time-quick" style="margin-bottom:6px"><button type="button" onclick="adj('recEnd',null)">지금</button><button type="button" onclick="clearEnd()">비우기</button></div>
       <input type="datetime-local" class="field" id="recEnd" onchange="bigUpdate('recEnd')">`;
+  } else if(type==='nursing'){
+    const og = rec ? null : ongoingNursing();
+    if(og){
+      inner+=`<div class="calc-out" style="border-color:#c85a96;color:#a8407a;margin-top:0">🤱 ${og.start.slice(11,16)}부터 수유 중 (${og.side||''})
+        <br><button class="btn" style="background:#c85a96;margin-top:8px" onclick="endNursing('${og.id}')">수유 종료</button></div>
+        <div class="muted" style="text-align:center;margin:12px 0">또는 직접 입력 ↓</div>`;
+    }
+    inner+=`<label>방향</label>
+      <div class="pill-row">
+        <button type="button" class="pill on" data-k="왼쪽" onclick="pickNr(this)">왼쪽</button>
+        <button type="button" class="pill" data-k="오른쪽" onclick="pickNr(this)">오른쪽</button>
+        <button type="button" class="pill" data-k="양쪽" onclick="pickNr(this)">양쪽</button>
+      </div>
+      <input id="nrSide" hidden value="왼쪽">`;
+    if(!rec) inner+=`<button class="btn" style="width:100%;margin-top:10px;background:#c85a96" onclick="startNursing(document.getElementById('nrSide').value)">🔴 지금부터 타이머 시작</button>
+      <div class="muted" style="text-align:center;margin:10px 0">— 또는 시간·수유시간 직접 입력 —</div>`;
+    inner+=timeControl('recTime','시작 시간');
+    inner+=`<label>수유 시간 (분)</label>
+      <input class="field" id="nrMin" type="number" inputmode="numeric" placeholder="예: 15">
+      <div class="memo-chips" style="margin-top:7px">${[5,10,15,20].map(m=>`<button type="button" onclick="document.getElementById('nrMin').value=${m}">${m}분</button>`).join('')}</div>`;
   } else if(type==='bath'){
     inner+=timeControl('recTime','시간');
   }
@@ -1072,6 +1126,11 @@ function openRec(type, rec){
     const mm=document.getElementById('recMemo'); if(mm) mm.value=rec.memo||'';
   }
   if(type==='sleep' && rec){ const ee=document.getElementById('recEnd'); if(ee){ ee.value=rec.end||''; bigUpdate('recEnd'); } }
+  if(type==='nursing' && rec){
+    const k=document.getElementById('nrSide'); if(k) k.value=rec.side||'왼쪽';
+    document.querySelectorAll('.pill-row .pill').forEach(b=>b.classList.toggle('on', b.dataset.k===(rec.side||'왼쪽')));
+    const mm=document.getElementById('nrMin'); if(mm) mm.value=rec.dur??'';
+  }
   document.getElementById('modalBg').classList.add('on');
 }
 function editRec(rid){ const r=DB.logs.find(x=>x.id===rid); if(r) openRec(r.type, r); }
@@ -1081,6 +1140,7 @@ function saveRec(type){
   if(type==='feed'){ rec.ts=val('recTime'); rec.amount=parseInt(val('recAmt'))||0; rec.memo=val('recMemo').trim(); }
   else if(type==='diaper'){ rec.ts=val('recTime'); rec.kind=val('recKind'); rec.memo=val('recMemo').trim(); }
   else if(type==='sleep'){ rec.ts=val('recStart'); rec.start=val('recStart'); rec.end=val('recEnd')||null; if(rec.end && new Date(rec.end)<new Date(rec.start)){ alert('깬 시간이 잠든 시간보다 빠를 수 없어요.'); return; } }
+  else if(type==='nursing'){ rec.ts=val('recTime'); rec.start=val('recTime'); rec.side=val('nrSide'); const m=parseInt(val('nrMin')); rec.dur=m>0?m:null; rec.ongoing=false; }
   else if(type==='bath'){ rec.ts=val('recTime'); }
   if(!rec.ts){ alert('시간을 입력하세요.'); return; }
   if(_editId){ const i=DB.logs.findIndex(x=>x.id===_editId); if(i>=0) DB.logs[i]=rec; else DB.logs.push(rec); }
@@ -1099,7 +1159,7 @@ function dateHeader(d){
   const dt=new Date(d); return (dt.getMonth()+1)+'월 '+dt.getDate()+'일 ('+WD[dt.getDay()]+')';
 }
 function renderRecords(){
-  const lastFeed=lastOf('feed'), lastDia=lastOf('diaper'), og=ongoingSleep();
+  const lastFeed=lastFeedAny(), lastDia=lastOf('diaper'), og=ongoingSleep();
   let sleepTxt;
   if(og) sleepTxt='수면 중';
   else { const ls=[...DB.logs].filter(r=>r.type==='sleep'&&r.end).sort((a,b)=>b.end.localeCompare(a.end))[0]; sleepTxt= ls? agoText(ls.end):'-'; }
@@ -1118,6 +1178,7 @@ function renderRecords(){
     if(r.type==='feed') detail=(r.amount?r.amount+'ml':'')+(r.memo?((r.amount?' · ':'')+esc(r.memo)):'');
     else if(r.type==='diaper') detail=(r.kind||'')+(r.memo?' · '+esc(r.memo):'');
     else if(r.type==='sleep') detail= r.end? (durText(durMin(r.start,r.end))+' · '+r.start.slice(11,16)+'~'+r.end.slice(11,16)) : '진행 중 💤';
+    else if(r.type==='nursing') detail= r.ongoing? '수유 중 🤱' : ((r.side||'')+(r.dur?(' · '+r.dur+'분'):''));
     else if(r.type==='bath') detail='목욕 완료';
     html+=`<div style="display:flex;align-items:center;gap:9px;padding:9px 2px;border-bottom:1px solid var(--line)">
       <div onclick="editRec('${r.id}')" style="flex:1;min-width:0;display:flex;align-items:center;gap:9px;cursor:pointer">
@@ -1493,6 +1554,38 @@ function policyItems(a){
   mk('🐰 깡충깡충 성장양육지원금','만 2·3·4세 각 1회 30만원 (관악사랑상품권)','정부24 · 동주민센터','https://www.gov.kr','만 2세부터 매년 (관악구)',kc);
   return items;
 }
+function renderDash(){
+  const head=document.getElementById('dashHead'); if(!head) return;
+  const a=ageInfo(); const nm=babyName();
+  head.innerHTML=`<h2 style="margin:0 0 2px">${nm?esc(nm)+' 👶':'🍼 우리아이 케어'}</h2>
+    <div class="muted">${a?`생후 ${a.months}개월 · D+${a.days} · ${a.weeks}주차`:'<a onclick="goTab(\'tab-baby\')" style="color:var(--pink-d);cursor:pointer;font-weight:700">아이 정보를 입력해 주세요 →</a>'}</div>
+    <div class="dash-quick">
+      <button class="rec-feed" onclick="openRec('feed')"><span class="ic">🍼</span>분유</button>
+      <button class="rec-nursing" onclick="openRec('nursing')"><span class="ic">🤱</span>모유</button>
+      <button class="rec-diaper" onclick="openRec('diaper')"><span class="ic">🧷</span>기저귀</button>
+      <button class="rec-sleep" onclick="openRec('sleep')"><span class="ic">😴</span>수면</button>
+    </div>`;
+  const tk=todayLocal(); const today=new Date();
+  const activeChores=DB.choreRules.filter(r=>isActiveOn(r,today));
+  const doneChores=activeChores.filter(r=>DB.choreDone[r.id+'__'+tk]).length;
+  const lf=lastFeedAny(), ld=lastOf('diaper'), og=ongoingSleep();
+  const sleepTxt = og?'수면 중 😴':(()=>{ const ls=[...DB.logs].filter(r=>r.type==='sleep'&&r.end).sort((a,b)=>b.end.localeCompare(a.end))[0]; return ls?agoText(ls.end):'-'; })();
+  const futureEv=[...DB.events].filter(e=>!e.done && e.d>=tk).sort((a,b)=>a.d.localeCompare(b.d))[0];
+  let evTxt='-'; if(futureEv){ const dd=dayDiff(futureEv.d); evTxt=`${esc(futureEv.t)} <b>${dd===0?'오늘':'D-'+dd}</b>`; }
+  document.getElementById('dashToday').innerHTML=
+    `<div class="dash-row"><span>🧹 오늘 집안일</span><b>${doneChores}/${activeChores.length}</b></div>
+     <div class="dash-row"><span>🍼 마지막 수유</span><b>${lf?agoText(lf.ts):'-'}</b></div>
+     <div class="dash-row"><span>🧷 마지막 기저귀</span><b>${ld?agoText(ld.ts):'-'}</b></div>
+     <div class="dash-row"><span>😴 수면</span><b>${sleepTxt}</b></div>
+     <div class="dash-row"><span>📅 다음 일정</span><span>${evTxt}</span></div>`;
+  const soon=DB.supplies.map(it=>({it,st:supplyStat(it)})).filter(o=>o.st.rate>0 && o.st.daysLeft<=7).sort((a,b)=>a.st.daysLeft-b.st.daysLeft);
+  const sc=document.getElementById('dashSupplyCard');
+  if(soon.length){ sc.style.display='block'; document.getElementById('dashSupply').innerHTML=soon.map(o=>`<div class="dash-row"><span>📦 ${esc(o.it.name)}</span><b>${o.st.daysLeft<0?'소진 지남':'D-'+o.st.daysLeft}</b></div>`).join(''); }
+  else sc.style.display='none';
+  const dc=document.getElementById('dashDevCard');
+  if(a){ dc.style.display='block'; document.getElementById('dashDev').innerHTML=`<div style="font-size:14px;line-height:1.6">${mileFor(a.months).t}</div>`; }
+  else dc.style.display='none';
+}
 function renderPolicy(){
   const wrap=document.getElementById('policyList'); if(!wrap) return;
   const a=ageInfo();
@@ -1525,7 +1618,7 @@ function refreshHome(){ _selDay=new Date().getDay(); renderDayBar(); renderChore
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshHome(); });
 window.addEventListener('focus', refreshHome);
 renderDayPick(); renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); renderGrowth();
-applyBaby(); renderDev(); renderSupplies(); renderPolicy();
+applyBaby(); renderDev(); renderSupplies(); renderPolicy(); renderDash();
 initFirebase();
 </script>
 </body>
