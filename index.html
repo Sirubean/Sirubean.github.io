@@ -153,6 +153,11 @@
   nav button.active{color:var(--pink-d);}
   nav button{position:relative;}
   .ndot{position:absolute; top:6px; left:50%; margin-left:6px; width:8px; height:8px; border-radius:50%; background:#ff3b6b;}
+  .toast{position:fixed; left:50%; bottom:calc(86px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(16px); background:rgba(45,33,42,.94); color:#fff; padding:10px 18px; border-radius:999px; font-size:13.5px; font-weight:700; z-index:100; opacity:0; transition:opacity .2s,transform .2s; pointer-events:none; max-width:82%; text-align:center;}
+  .toast.on{opacity:1; transform:translateX(-50%) translateY(0);}
+  .rec-filter{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;}
+  .rec-filter button{padding:6px 11px; border-radius:999px; border:1.5px solid var(--line); background:var(--surface); font-size:12.5px; font-weight:700; color:var(--sub); cursor:pointer;}
+  .rec-filter button.on{background:var(--pink); color:#fff; border-color:var(--pink);}
   .fab-note{font-size:11.5px; color:var(--sub); text-align:center; margin:2px 0 16px;}
   .seg{display:flex; gap:6px; margin-bottom:12px;}
   .seg button{flex:1; padding:8px; border-radius:10px; border:1.5px solid var(--line); background:var(--surface); color:var(--sub); font-weight:700; font-size:13px; cursor:pointer;}
@@ -287,6 +292,7 @@
       </div>
       <div class="card">
         <h2>🕒 기록 타임라인</h2>
+        <div class="rec-filter" id="recFilter"></div>
         <div id="timelineList"></div>
       </div>
     </div>
@@ -455,6 +461,8 @@
   <div class="modal" id="modalBody"></div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <!-- iOS 햅틱 트릭용 (보이지 않음) -->
 <label id="hapticLabel" aria-hidden="true" style="position:absolute; opacity:0; pointer-events:none; width:0; height:0; overflow:hidden;">
   <input type="checkbox" id="hapticSwitch" switch>
@@ -602,7 +610,7 @@ function genCode(){ return Math.random().toString(36).slice(2,6)+'-'+Math.random
 function newFamily(){ attachFamily(genCode()); openSync(); }
 function joinByInput(){
   const code=(val('famInput')||'').trim().toLowerCase();
-  if(!code){ alert('가족 코드를 입력하세요.'); return; }
+  if(!code){ toast('가족 코드를 입력하세요.'); return; }
   if(!confirm('받은 코드로 연동하면 이 폰의 기존 데이터가 공유 데이터로 바뀝니다. 연동할까요?')) return;
   attachFamily(code); closeRec();
 }
@@ -611,7 +619,7 @@ function leaveFamily(){
   _familyCode=null; localStorage.removeItem(FAMKEY);
   closeRec(); updateSyncBadge();
 }
-function copyCode(){ if(_familyCode){ navigator.clipboard?.writeText(_familyCode); alert('코드를 복사했어요: '+_familyCode); } }
+function copyCode(){ if(_familyCode){ navigator.clipboard?.writeText(_familyCode); toast('코드를 복사했어요: '+_familyCode); } }
 function updateSyncBadge(){
   const b=document.getElementById('syncBtn'); if(!b) return;
   if(_familyCode){ b.textContent='🔗 연동됨'; b.classList.add('on'); }
@@ -725,8 +733,8 @@ function toggleDay(d,btn){
 }
 function addRule(){
   const el=document.getElementById('ruleTitle'); const t=el.value.trim();
-  if(!t){ alert('할 일 이름을 입력하세요.'); return; }
-  if(_freq==='weekly' && _days.size===0){ alert('요일을 한 개 이상 선택하세요.'); return; }
+  if(!t){ toast('할 일 이름을 입력하세요.'); return; }
+  if(_freq==='weekly' && _days.size===0){ toast('요일을 한 개 이상 선택하세요.'); return; }
   const r={id:id(), t, rule:_freq, days:[..._days], time:_time};
   if(_freq==='everyother') r.anchor=todayStr();
   DB.choreRules.push(r); el.value=''; _days.clear();
@@ -769,7 +777,7 @@ function addEvent(){
   const d=document.getElementById('evDate').value;
   const t=document.getElementById('evTitle').value.trim();
   const m=document.getElementById('evMemo').value.trim();
-  if(!d||!t){ alert('날짜와 일정 내용을 입력하세요.'); return; }
+  if(!d||!t){ toast('날짜와 일정 내용을 입력하세요.'); return; }
   DB.events.push({id:id(), d, t, m, done:false});
   document.getElementById('evTitle').value=''; document.getElementById('evMemo').value='';
   save(); renderEvents();
@@ -818,7 +826,7 @@ function editEvent(eid){
 function saveEventEdit(eid){
   const e=DB.events.find(x=>x.id===eid); if(!e) return;
   const d=val('edDate'), t=val('edTitle').trim();
-  if(!d||!t){ alert('날짜와 내용을 입력하세요.'); return; }
+  if(!d||!t){ toast('날짜와 내용을 입력하세요.'); return; }
   e.d=d; e.t=t; e.m=val('edMemo').trim();
   save(); closeRec(); renderEvents();
 }
@@ -839,7 +847,7 @@ const VAX = [
 ];
 function genVaccines(){
   const b=document.getElementById('birthDate').value;
-  if(!b){ alert('생년월일을 입력하세요.'); return; }
+  if(!b){ toast('생년월일을 입력하세요.'); return; }
   if(!confirm('표준 예방접종 일정을 추가할까요? (대략 시기이며 소아과 안내를 우선하세요)')) return;
   const base=new Date(b);
   let added=0;
@@ -850,7 +858,7 @@ function genVaccines(){
     if(!exists){ DB.events.push({id:id(), d:ds, t:"💉 "+v.t, m:"예방접종", done:false}); added++; }
   });
   save(); renderEvents();
-  alert(added+'건의 접종 일정을 추가했어요. 일정 탭에서 확인하세요!');
+  toast(added+'건의 접종 일정을 추가했어요. 일정 탭에서 확인하세요!');
 }
 
 /* ---------- 메모 (부부 공용 일정) ---------- */
@@ -858,7 +866,7 @@ function addNote(){
   const d=document.getElementById('noteDate').value;
   const tm=document.getElementById('noteTime').value;
   const tx=document.getElementById('noteText').value.trim();
-  if(!d||!tx){ alert('날짜와 내용을 입력하세요.'); return; }
+  if(!d||!tx){ toast('날짜와 내용을 입력하세요.'); return; }
   DB.notes.push({id:id(), d, tm, t:tx, done:false});
   document.getElementById('noteText').value=''; document.getElementById('noteTime').value='';
   save(); renderNotes();
@@ -906,7 +914,7 @@ function editNote(nid){
 function saveNoteEdit(nid){
   const n=DB.notes.find(x=>x.id===nid); if(!n) return;
   const d=val('enDate'), tx=val('enText').trim();
-  if(!d||!tx){ alert('날짜와 내용을 입력하세요.'); return; }
+  if(!d||!tx){ toast('날짜와 내용을 입력하세요.'); return; }
   n.d=d; n.tm=val('enTime'); n.t=tx;
   save(); closeRec(); renderNotes();
 }
@@ -932,7 +940,7 @@ function addMilk(){
   const ml=parseInt(document.getElementById('newMl').value);
   let water=parseInt(document.getElementById('newWater').value);
   let scoop=parseFloat(document.getElementById('newScoop').value);
-  if(!ml){ alert('총량(ml)을 입력하세요.'); return; }
+  if(!ml){ toast('총량(ml)을 입력하세요.'); return; }
   if(isNaN(water)) water=ml;            // 비우면 총량과 동일하게
   if(isNaN(scoop)) scoop=+(ml/25).toFixed(1); // 비우면 25ml당 1스푼
   DB.milk.push({ml, water, scoop});
@@ -1152,10 +1160,10 @@ function saveRec(type){
   let rec={id: _editId || id(), type};
   if(type==='feed'){ rec.ts=val('recTime'); rec.amount=parseInt(val('recAmt'))||0; rec.memo=val('recMemo').trim(); }
   else if(type==='diaper'){ rec.ts=val('recTime'); rec.kind=val('recKind'); rec.memo=val('recMemo').trim(); }
-  else if(type==='sleep'){ rec.ts=val('recStart'); rec.start=val('recStart'); rec.end=val('recEnd')||null; if(rec.end && new Date(rec.end)<new Date(rec.start)){ alert('깬 시간이 잠든 시간보다 빠를 수 없어요.'); return; } }
+  else if(type==='sleep'){ rec.ts=val('recStart'); rec.start=val('recStart'); rec.end=val('recEnd')||null; if(rec.end && new Date(rec.end)<new Date(rec.start)){ toast('깬 시간이 잠든 시간보다 빠를 수 없어요.'); return; } }
   else if(type==='nursing'){ rec.ts=val('recTime'); rec.start=val('recTime'); rec.side=val('nrSide'); const m=parseInt(val('nrMin')); rec.dur=m>0?m:null; rec.ongoing=false; }
   else if(type==='bath'){ rec.ts=val('recTime'); }
-  if(!rec.ts){ alert('시간을 입력하세요.'); return; }
+  if(!rec.ts){ toast('시간을 입력하세요.'); return; }
   if(_editId){ const i=DB.logs.findIndex(x=>x.id===_editId); if(i>=0) DB.logs[i]=rec; else DB.logs.push(rec); }
   else DB.logs.push(rec);
   _editId=null; save(); closeRec(); renderRecords();
@@ -1180,9 +1188,14 @@ function renderRecords(){
     `<div class="sumcard"><div class="lab">마지막 수유</div><div class="val">${lastFeed?agoText(lastFeed.ts):'-'}</div></div>
      <div class="sumcard"><div class="lab">마지막 기저귀</div><div class="val">${lastDia?agoText(lastDia.ts):'-'}</div></div>
      <div class="sumcard"><div class="lab">수면</div><div class="val">${sleepTxt}</div></div>`;
+  const fc=document.getElementById('recFilter');
+  if(fc){ const FILTERS=[['all','전체'],['feed','🍼'],['nursing','🤱'],['diaper','🧷'],['sleep','😴'],['bath','🛁']];
+    fc.innerHTML=FILTERS.map(([k,l])=>`<button class="${_recFilter===k?'on':''}" onclick="setRecFilter('${k}')">${k==='all'?l:l+' '+REC[k].name}</button>`).join(''); }
   const list=document.getElementById('timelineList');
   if(!DB.logs.length){ list.innerHTML='<div class="empty">아직 기록이 없어요. 위 버튼으로 기록해 보세요 ✨</div>'; return; }
-  const items=[...DB.logs].sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
+  let items=[...DB.logs].sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
+  if(_recFilter!=='all') items=items.filter(r=>r.type===_recFilter);
+  if(!items.length){ list.innerHTML='<div class="empty">해당 기록이 없어요</div>'; return; }
   let html='', cur='';
   items.forEach(r=>{
     const d=(r.ts||'').slice(0,10);
@@ -1293,8 +1306,8 @@ function renderClock(){
 /* ---------- 성장 기록/곡선 ---------- */
 function addGrowth(){
   const d=val('grDate'), w=val('grW'), h=val('grH'), hc=val('grHc');
-  if(!d){ alert('날짜를 입력하세요.'); return; }
-  if(!w&&!h&&!hc){ alert('몸무게·키·머리둘레 중 하나는 입력하세요.'); return; }
+  if(!d){ toast('날짜를 입력하세요.'); return; }
+  if(!w&&!h&&!hc){ toast('몸무게·키·머리둘레 중 하나는 입력하세요.'); return; }
   DB.growth.push({id:id(), d, w:w?+w:null, h:h?+h:null, hc:hc?+hc:null});
   ['grW','grH','grHc'].forEach(x=>document.getElementById(x).value='');
   save(); renderGrowth();
@@ -1315,7 +1328,7 @@ function editGrowth(gid){
 }
 function saveGrowthEdit(gid){
   const g=DB.growth.find(x=>x.id===gid); if(!g) return;
-  const d=val('egDate'); if(!d){ alert('날짜를 입력하세요.'); return; }
+  const d=val('egDate'); if(!d){ toast('날짜를 입력하세요.'); return; }
   g.d=d; g.w=val('egW')?+val('egW'):null; g.h=val('egH')?+val('egH'):null; g.hc=val('egHc')?+val('egHc'):null;
   save(); closeRec(); renderGrowth();
 }
@@ -1408,7 +1421,7 @@ function pickUse(btn){ _bbUse=btn.dataset.u; [...btn.parentNode.children].forEac
 function pickSex(btn){ _bbSex=btn.dataset.s; [...btn.parentNode.children].forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
 function saveBaby(){
   DB.baby={ name:val('bbName').trim(), nick:val('bbNick').trim(), birth:val('bbBirth'), use:_bbUse, sex:_bbSex };
-  save(); applyBaby(); renderDev(); renderGrowth(); renderDash(); alert('저장했어요!');
+  save(); applyBaby(); renderDev(); renderGrowth(); renderDash(); toast('저장했어요!');
 }
 function babyName(){ const b=DB.baby||{}; const n=(b.use==='nick')?(b.nick||b.name):(b.name||b.nick); return n||''; }
 function ageInfo(){
@@ -1517,7 +1530,7 @@ function pickSup(btn){
 function addSupply(){
   const pb=document.querySelector('#supPreset button.on');
   let name = (pb && pb.dataset.n!=='') ? pb.dataset.n : val('supName').trim();
-  if(!name){ alert('품목을 선택하거나 이름을 입력하세요.'); return; }
+  if(!name){ toast('품목을 선택하거나 이름을 입력하세요.'); return; }
   const unit=val('supUnit').trim()||'개'; const per=val('supPer');
   DB.supplies.push({id:id(), name, unit, perDay:per?+per:null, purchases:[]});
   document.getElementById('supName').value=''; document.getElementById('supPer').value='';
@@ -1530,8 +1543,8 @@ function updTot(itemId){
 function addPurchase(itemId){
   const it=DB.supplies.find(x=>x.id===itemId); if(!it) return;
   const packs=+val('pPacks_'+itemId); const per=+val('pPer_'+itemId); const d=val('pDate_'+itemId);
-  if(!packs){ alert('팩 수를 입력하세요.'); return; }
-  if(!d){ alert('날짜를 입력하세요.'); return; }
+  if(!packs){ toast('팩 수를 입력하세요.'); return; }
+  if(!d){ toast('날짜를 입력하세요.'); return; }
   const pe=per>0?per:1;
   (it.purchases=it.purchases||[]).push({id:id(), date:d, packs, per:pe, qty:packs*pe});
   save(); renderSupplies();
@@ -1625,9 +1638,9 @@ function computeReminders(){
 }
 function setFeedHours(v){ DB.settings.feedHours=+v; save(); renderDash(); }
 function toggleNotify(){
-  if(!('Notification' in window)){ alert('이 브라우저는 알림을 지원하지 않아요.'); return; }
+  if(!('Notification' in window)){ toast('이 브라우저는 알림을 지원하지 않아요.'); return; }
   Notification.requestPermission().then(p=>{ DB.settings.notify=(p==='granted'); save(); renderDash();
-    if(p!=='granted') alert('알림 권한이 허용되지 않았어요.\n아이폰은 홈 화면에 추가한 앱에서 iOS 16.4 이상만 동작해요.'); });
+    if(p!=='granted') toast('알림 권한이 허용되지 않았어요.\n아이폰은 홈 화면에 추가한 앱에서 iOS 16.4 이상만 동작해요.'); });
 }
 function fireNotify(){
   if(!DB.settings||!DB.settings.notify) return;
@@ -1707,6 +1720,10 @@ function renderPolicy(){
 }
 
 /* ---------- util ---------- */
+let _toastT;
+function toast(msg){ const el=document.getElementById('toast'); if(!el) return; el.textContent=msg; el.classList.add('on'); clearTimeout(_toastT); _toastT=setTimeout(()=>el.classList.remove('on'),2000); }
+let _recFilter='all';
+function setRecFilter(f){ _recFilter=f; renderRecords(); }
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ---------- init ---------- */
