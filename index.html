@@ -240,7 +240,8 @@
         <button class="btn blue" style="flex:0 0 auto" onclick="addEvent()">추가</button>
       </div>
       <label class="flbl" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="evYearly" style="width:auto"> 매년 반복 (생일·기념일)</label>
-      <ul class="list" id="eventList" style="margin-top:4px"></ul>
+      <div class="rec-filter" id="evFilter" style="margin-top:8px"></div>
+      <div id="eventList"></div>
     </div>
 
     <div class="card">
@@ -809,28 +810,43 @@ function evDate(ev){
   if(cand<t0) cand=new Date(now.getFullYear()+1,o.getMonth(),o.getDate());
   return `${cand.getFullYear()}-${pad(cand.getMonth()+1)}-${pad(cand.getDate())}`;
 }
+let _evFilter='all';
+function setEvFilter(f){ _evFilter=f; renderEvents(); }
+function evCat(e){ if(e.m==='예방접종') return 'vax'; if(e.m==='기념일') return 'mile'; return 'etc'; }
+function evLi(ev){
+  const i=DB.events.indexOf(ev); const ed=evDate(ev); const dd=dayDiff(ed);
+  let chip;
+  if(ev.done && !ev.yearly) chip='<span class="chip past">완료</span>';
+  else if(dd<0) chip='<span class="chip past">지남</span>';
+  else if(dd===0) chip='<span class="chip today">오늘</span>';
+  else if(dd<=7) chip=`<span class="chip soon">D-${dd}</span>`;
+  else chip=`<span class="chip">D-${dd}</span>`;
+  const showMemo = ev.m && ev.m!=='예방접종' && ev.m!=='기념일';
+  return `<li class="${ev.done&&!ev.yearly?'done':''}">
+    <div class="check ${ev.done?'on':''}" onclick="toggleEvent(${i})">${ev.done?'✓':''}</div>
+    <div class="li-body" onclick="editEvent('${ev.id}')" style="cursor:pointer">
+      <div class="li-title">${chip}${esc(ev.t)}${ev.yearly?' <span class="muted" style="font-size:11px">🔁매년</span>':''}</div>
+      <div class="li-sub">${ed}${showMemo?' · '+esc(ev.m):''}</div>
+    </div>
+    <button class="iconbtn" onclick="delEvent(${i})">🗑️</button>
+  </li>`;
+}
 function renderEvents(){
-  const ul=document.getElementById('eventList');
-  if(!DB.events.length){ ul.innerHTML='<div class="empty">예정된 일정이 없어요 🎈</div>'; return; }
-  const sorted=[...DB.events].sort((a,b)=>evDate(a).localeCompare(evDate(b)));
-  ul.innerHTML = sorted.map(ev=>{
-    const i=DB.events.indexOf(ev);
-    const ed=evDate(ev); const dd=dayDiff(ed);
-    let chip;
-    if(ev.done && !ev.yearly) chip='<span class="chip past">완료</span>';
-    else if(dd<0) chip='<span class="chip past">지남</span>';
-    else if(dd===0) chip='<span class="chip today">오늘</span>';
-    else if(dd<=7) chip=`<span class="chip soon">D-${dd}</span>`;
-    else chip=`<span class="chip">D-${dd}</span>`;
-    return `<li class="${ev.done&&!ev.yearly?'done':''}">
-      <div class="check ${ev.done?'on':''}" onclick="toggleEvent(${i})">${ev.done?'✓':''}</div>
-      <div class="li-body" onclick="editEvent('${ev.id}')" style="cursor:pointer">
-        <div class="li-title">${chip}${esc(ev.t)}${ev.yearly?' <span class="muted" style="font-size:11px">🔁매년</span>':''}</div>
-        <div class="li-sub">${ed}${ev.m?' · '+esc(ev.m):''}</div>
-      </div>
-      <button class="iconbtn" onclick="delEvent(${i})">🗑️</button>
-    </li>`;
-  }).join('');
+  const fc=document.getElementById('evFilter');
+  if(fc){ const F=[['all','전체'],['vax','💉 예방접종'],['mile','🎂 기념일'],['etc','📅 기타']];
+    fc.innerHTML=F.map(([k,l])=>`<button class="${_evFilter===k?'on':''}" onclick="setEvFilter('${k}')">${l}</button>`).join(''); }
+  const cont=document.getElementById('eventList'); if(!cont) return;
+  if(!DB.events.length){ cont.innerHTML='<div class="empty">예정된 일정이 없어요 🎈</div>'; return; }
+  let list=[...DB.events].sort((a,b)=>evDate(a).localeCompare(evDate(b)));
+  if(_evFilter!=='all') list=list.filter(e=>evCat(e)===_evFilter);
+  if(!list.length){ cont.innerHTML='<div class="empty">해당 일정이 없어요</div>'; return; }
+  if(_evFilter==='all'){
+    const G=[['vax','💉 예방접종'],['mile','🎂 기념일'],['etc','📅 기타']];
+    cont.innerHTML=G.map(([k,label])=>{ const items=list.filter(e=>evCat(e)===k); if(!items.length) return '';
+      return `<div style="margin:12px 0 2px;font-weight:800;font-size:13px;color:var(--sub)">${label}</div><ul class="list">`+items.map(evLi).join('')+'</ul>'; }).join('');
+  } else {
+    cont.innerHTML='<ul class="list">'+list.map(evLi).join('')+'</ul>';
+  }
 }
 function genMilestones(){
   const b=DB.baby||{}; if(!b.birth){ toast('아이 정보에서 생년월일을 먼저 입력하세요.'); return; }
