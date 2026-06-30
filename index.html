@@ -358,13 +358,20 @@
     <a class="backlink" onclick="goTab('tab-more')">← 더보기</a>
     <div class="card">
       <h2>🛒 소모품 추가</h2>
-      <input class="field" id="supName" placeholder="품목 (예: 기저귀, 분유, 물티슈)">
+      <label class="flbl">품목</label>
+      <div class="seg" id="supPreset" style="flex-wrap:wrap">
+        <button class="on" data-n="기저귀" data-u="개" onclick="pickSup(this)">기저귀</button>
+        <button data-n="분유" data-u="스푼" onclick="pickSup(this)">분유</button>
+        <button data-n="물티슈" data-u="매" onclick="pickSup(this)">물티슈</button>
+        <button data-n="" data-u="개" onclick="pickSup(this)">직접입력</button>
+      </div>
+      <input class="field" id="supName" placeholder="품목 이름" style="display:none">
       <div class="row" style="margin-top:8px">
-        <input class="field" id="supUnit" placeholder="단위 (개/통/팩)">
+        <input class="field" id="supUnit" value="개" placeholder="단위">
         <input class="field" id="supPer" type="number" inputmode="decimal" placeholder="하루 사용량(선택)">
       </div>
       <button class="btn" style="width:100%;margin-top:10px" onclick="addSupply()">＋ 품목 추가</button>
-      <p class="muted" style="margin-top:8px">구매를 2번 이상 기록하면 평균 사용량·소진일을 자동 계산해요. (하루 사용량을 직접 넣으면 1번 기록으로도 계산됩니다)</p>
+      <p class="muted" style="margin-top:8px">구매할 때 <b>팩 수 × 팩당 개수</b>로 총 개수를 기록하면 평균 사용량·소진일을 자동 계산해요. (하루 사용량을 넣으면 1번 기록으로도 계산됩니다)</p>
     </div>
     <div id="supplyList"></div>
   </section>
@@ -1378,22 +1385,39 @@ function supplyStat(it){
   }
   return r;
 }
+function pickSup(btn){
+  [...btn.parentNode.children].forEach(b=>b.classList.remove('on')); btn.classList.add('on');
+  const custom = btn.dataset.n==='';
+  const nm=document.getElementById('supName');
+  nm.style.display = custom?'block':'none';
+  if(custom) nm.value='';
+  document.getElementById('supUnit').value = btn.dataset.u||'개';
+}
 function addSupply(){
-  const name=val('supName').trim(); if(!name){ alert('품목 이름을 입력하세요.'); return; }
+  const pb=document.querySelector('#supPreset button.on');
+  let name = (pb && pb.dataset.n!=='') ? pb.dataset.n : val('supName').trim();
+  if(!name){ alert('품목을 선택하거나 이름을 입력하세요.'); return; }
   const unit=val('supUnit').trim()||'개'; const per=val('supPer');
   DB.supplies.push({id:id(), name, unit, perDay:per?+per:null, purchases:[]});
-  ['supName','supUnit','supPer'].forEach(x=>document.getElementById(x).value='');
+  document.getElementById('supName').value=''; document.getElementById('supPer').value='';
   save(); renderSupplies();
+}
+function updTot(itemId){
+  const packs=+(val('pPacks_'+itemId)||0); const per=+(val('pPer_'+itemId)||0);
+  const pe=per>0?per:1; const el=document.getElementById('pTot_'+itemId); if(el) el.textContent=packs*pe;
 }
 function addPurchase(itemId){
   const it=DB.supplies.find(x=>x.id===itemId); if(!it) return;
-  const d=val('pDate_'+itemId), q=val('pQty_'+itemId);
-  if(!d||!q){ alert('날짜와 수량을 입력하세요.'); return; }
-  (it.purchases=it.purchases||[]).push({id:id(), date:d, qty:+q});
+  const packs=+val('pPacks_'+itemId); const per=+val('pPer_'+itemId); const d=val('pDate_'+itemId);
+  if(!packs){ alert('팩 수를 입력하세요.'); return; }
+  if(!d){ alert('날짜를 입력하세요.'); return; }
+  const pe=per>0?per:1;
+  (it.purchases=it.purchases||[]).push({id:id(), date:d, packs, per:pe, qty:packs*pe});
   save(); renderSupplies();
 }
 function delPurchase(itemId,pid){ const it=DB.supplies.find(x=>x.id===itemId); if(it){ it.purchases=(it.purchases||[]).filter(p=>p.id!==pid); save(); renderSupplies(); } }
 function delSupply(itemId){ if(!confirm('이 품목을 삭제할까요?')) return; DB.supplies=DB.supplies.filter(x=>x.id!==itemId); save(); renderSupplies(); }
+function setPerDay(itemId,v){ const it=DB.supplies.find(x=>x.id===itemId); if(it){ it.perDay = (v!=='' && +v>0)?+v:null; save(); renderSupplies(); } }
 function renderSupplies(){
   const wrap=document.getElementById('supplyList'); if(!wrap) return;
   if(!DB.supplies.length){ wrap.innerHTML='<div class="card"><div class="empty">아직 품목이 없어요 🛒</div></div>'; return; }
@@ -1413,17 +1437,23 @@ function renderSupplies(){
         <div class="muted" style="margin-top:4px">구매를 2번 이상 기록하거나 하루 사용량을 넣으면 소진일이 계산돼요.</div>`;
     }
     const recent=[...(it.purchases||[])].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5)
-      .map(p=>`<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:var(--sub)"><span>${p.date} · ${p.qty}${u}</span><span onclick="delPurchase('${it.id}','${p.id}')" style="cursor:pointer">🗑️</span></div>`).join('');
+      .map(p=>{ const detail = (p.packs && p.per>1) ? `${p.packs}팩×${p.per} = ${p.qty}${u}` : `${p.qty}${u}`;
+        return `<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:var(--sub)"><span>${p.date} · ${detail}</span><span onclick="delPurchase('${it.id}','${p.id}')" style="cursor:pointer">🗑️</span></div>`; }).join('');
     return `<div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between">
         <h2 style="margin:0">📦 ${esc(it.name)}</h2>
         <button class="iconbtn" onclick="delSupply('${it.id}')">🗑️</button>
       </div>
       <div style="margin-top:6px">${summary}</div>
-      <div class="row" style="margin-top:10px">
+      <div style="margin-top:8px;font-size:13px">하루 사용량 <input class="tbl-input" style="width:62px;display:inline-block" type="number" inputmode="decimal" value="${it.perDay??''}" onchange="setPerDay('${it.id}',this.value)"> ${u}/일</div>
+      <div class="row" style="margin-top:8px">
+        <input class="field" type="number" inputmode="numeric" id="pPacks_${it.id}" placeholder="팩 수" oninput="updTot('${it.id}')">
+        <input class="field" type="number" inputmode="numeric" id="pPer_${it.id}" placeholder="팩당 개수" oninput="updTot('${it.id}')">
+      </div>
+      <div class="row" style="margin-top:6px;align-items:center">
         <input class="field" type="date" id="pDate_${it.id}">
-        <input class="field" type="number" inputmode="decimal" id="pQty_${it.id}" placeholder="수량" style="flex:0 0 30%">
-        <button class="btn sm" style="flex:0 0 auto" onclick="addPurchase('${it.id}')">구매기록</button>
+        <div style="flex:0 0 auto;font-size:13px;color:var(--sub);white-space:nowrap">총 <b id="pTot_${it.id}">0</b>${u}</div>
+        <button class="btn sm" style="flex:0 0 auto" onclick="addPurchase('${it.id}')">기록</button>
       </div>
       ${recent?`<div style="margin-top:8px">${recent}</div>`:''}
     </div>`;
