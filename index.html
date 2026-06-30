@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-512.png">
+<link rel="manifest" href="manifest.json">
 <title>우리아이 케어</title>
 <style>
   :root{
@@ -1723,6 +1724,7 @@ renderDayPick(); renderDayBar(); renderChores(); renderEvents(); renderNotes(); 
 applyBaby(); renderDev(); renderSupplies(); renderPolicy(); renderDash();
 initFirebase();
 fireNotify();
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 </script>
 </body>
 </html>
