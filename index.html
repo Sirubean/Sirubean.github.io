@@ -80,6 +80,26 @@
 
   .empty{text-align:center; color:var(--sub); padding:18px 0; font-size:13.5px;}
 
+  /* 기록 탭 */
+  .recgrid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px;}
+  .recgrid button{border:none; border-radius:14px; padding:13px 4px; color:#fff; font-weight:800; font-size:13px; display:flex; flex-direction:column; gap:5px; align-items:center; cursor:pointer;}
+  .recgrid button:active{transform:scale(.96);}
+  .recgrid .ic{font-size:23px;}
+  .rec-feed{background:#f0a84b;} .rec-diaper{background:#b08968;} .rec-sleep{background:#8a7fc2;} .rec-bath{background:#5bbccf;}
+  .sumrow{display:flex; gap:8px; margin-bottom:8px;}
+  .sumcard{flex:1; background:#fff7fb; border:1px solid var(--line); border-radius:14px; padding:10px 6px; text-align:center;}
+  .sumcard .lab{font-size:11px; color:var(--sub);}
+  .sumcard .val{font-size:14.5px; font-weight:800; margin-top:3px;}
+  .stat-bar{height:11px; border-radius:6px; background:var(--line); overflow:hidden;}
+  .stat-bar>div{height:100%; border-radius:6px;}
+  /* modal */
+  .modal-bg{position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; align-items:flex-end; z-index:50;}
+  .modal-bg.on{display:flex;}
+  .modal{background:#fff; width:100%; max-width:560px; margin:0 auto; border-radius:22px 22px 0 0; padding:20px 18px calc(22px + env(safe-area-inset-bottom)); animation:up .25s ease;}
+  @keyframes up{from{transform:translateY(50px); opacity:.5;} to{transform:none; opacity:1;}}
+  .modal h3{margin:0 0 8px; font-size:17px;}
+  .modal label{display:block; font-size:12.5px; color:var(--sub); margin:11px 0 4px; font-weight:700;}
+
   /* bottom nav */
   nav{position:fixed; left:0; right:0; bottom:0; z-index:30;
     background:#fff; display:flex; border-top:1px solid var(--line);
@@ -156,6 +176,42 @@
     </div>
   </section>
 
+  <!-- ============ 기록 (타임라인/통계) ============ -->
+  <section class="tab" id="tab-rec">
+    <div class="seg">
+      <button class="on" id="seg-tl" onclick="recView('tl')">📋 타임라인</button>
+      <button id="seg-st" onclick="recView('st')">📊 통계</button>
+    </div>
+
+    <div id="recTimeline">
+      <div class="card">
+        <h2>➕ 지금 기록</h2>
+        <div class="recgrid">
+          <button class="rec-feed" onclick="openRec('feed')"><span class="ic">🍼</span>분유</button>
+          <button class="rec-diaper" onclick="openRec('diaper')"><span class="ic">🧷</span>기저귀</button>
+          <button class="rec-sleep" onclick="openRec('sleep')"><span class="ic">😴</span>수면</button>
+          <button class="rec-bath" onclick="openRec('bath')"><span class="ic">🛁</span>목욕</button>
+        </div>
+        <div class="sumrow" id="recSummary" style="margin-top:14px"></div>
+      </div>
+      <div class="card">
+        <h2>🕒 기록 타임라인</h2>
+        <div id="timelineList"></div>
+      </div>
+    </div>
+
+    <div id="recStats" style="display:none">
+      <div class="card">
+        <h2>📊 오늘 요약</h2>
+        <div id="statToday"></div>
+      </div>
+      <div class="card">
+        <h2>📈 최근 7일 (수면시간 · 수유횟수)</h2>
+        <div id="statWeek"></div>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ 분유 ============ -->
   <section class="tab" id="tab-milk">
     <div class="card">
@@ -187,9 +243,15 @@
   <p class="fab-note">데이터는 이 휴대폰에만 저장됩니다 🔒</p>
 </main>
 
+<!-- 기록 입력 모달 -->
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeRec()">
+  <div class="modal" id="modalBody"></div>
+</div>
+
 <nav>
   <button class="active" data-tab="tab-home" onclick="go(this)"><span class="ic">🧹</span>집안일</button>
   <button data-tab="tab-cal" onclick="go(this)"><span class="ic">📅</span>일정</button>
+  <button data-tab="tab-rec" onclick="go(this)"><span class="ic">📝</span>기록</button>
   <button data-tab="tab-milk" onclick="go(this)"><span class="ic">🍼</span>분유</button>
 </nav>
 
@@ -206,6 +268,7 @@ function migrate(d){
   d.events ??= []; d.milk ??= seed().milk; d.lastReset ??= todayStr();
   if(!d.choreRules || !d.choreRules.length) d.choreRules = defaultRules();
   d.choreDone ??= {};
+  d.logs ??= [];
   delete d.chores; // 구버전 정리
   return d;
 }
@@ -229,6 +292,7 @@ function seed(){
   return {
     choreRules: defaultRules(),
     choreDone: {},
+    logs:[],
     events:[],
     milk:[60,90,100,120,150,180,210,240].map(mk),
     lastReset: todayStr()
@@ -440,6 +504,149 @@ function calcMilk(){
   out.innerHTML=`물 <b>${water}</b> ml<br><span style="font-size:14px;color:var(--sub)">+</span><br>분유 <b>${scoop}</b> 스푼`;
 }
 
+/* ---------- 기록 (타임라인/통계) ---------- */
+const REC = {
+  feed:  {ic:'🍼', name:'분유',   color:'#e0922f'},
+  diaper:{ic:'🧷', name:'기저귀', color:'#9c7355'},
+  sleep: {ic:'😴', name:'수면',   color:'#7d70b8'},
+  bath:  {ic:'🛁', name:'목욕',   color:'#3aa3b8'},
+};
+function pad(n){ return String(n).padStart(2,'0'); }
+function localNowStr(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function todayLocal(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function durMin(a,b){ return Math.max(0, Math.round((new Date(b)-new Date(a))/60000)); }
+function durText(min){ const h=Math.floor(min/60), m=min%60; return (h?h+'시간 ':'')+m+'분'; }
+function agoText(ts){ const diff=Math.round((new Date()-new Date(ts))/60000); if(diff<1) return '방금'; const h=Math.floor(diff/60), m=diff%60; return (h?h+'시간 ':'')+m+'분 전'; }
+function lastOf(type){ return [...DB.logs].filter(r=>r.type===type).sort((a,b)=>(b.ts||'').localeCompare(a.ts||''))[0]; }
+function ongoingSleep(){ return DB.logs.find(r=>r.type==='sleep' && !r.end); }
+
+function recView(v){
+  document.getElementById('recTimeline').style.display = v==='tl'?'block':'none';
+  document.getElementById('recStats').style.display = v==='st'?'block':'none';
+  document.getElementById('seg-tl').classList.toggle('on', v==='tl');
+  document.getElementById('seg-st').classList.toggle('on', v==='st');
+  if(v==='st') renderStats();
+}
+function openRec(type){
+  const now=localNowStr();
+  let inner='<h3>'+REC[type].ic+' '+REC[type].name+' 기록</h3>';
+  if(type==='feed'){
+    inner+=`<label>시간</label><input class="field" type="datetime-local" id="recTime" value="${now}">
+      <label>양 (ml)</label><input class="field" type="number" inputmode="numeric" id="recAmt" placeholder="예: 120">
+      <label>메모 (선택)</label><input class="field" id="recMemo" placeholder="예: 분유 / 모유 / 유산균">`;
+  } else if(type==='diaper'){
+    inner+=`<label>시간</label><input class="field" type="datetime-local" id="recTime" value="${now}">
+      <label>종류</label>
+      <select class="field" id="recKind"><option>소변</option><option>대변</option><option>소변+대변</option></select>`;
+  } else if(type==='sleep'){
+    const og=ongoingSleep();
+    if(og){
+      inner+=`<div class="calc-out" style="border-color:#8a7fc2;color:#6b5fb0;margin-top:0">😴 ${og.start.slice(11,16)}부터 수면 중
+        <br><button class="btn" style="background:#8a7fc2;margin-top:8px" onclick="endSleep('${og.id}')">지금 깨어남 기록</button></div>
+        <div class="muted" style="text-align:center;margin:12px 0">또는 새 수면 직접 입력 ↓</div>`;
+    }
+    inner+=`<label>잠든 시간</label><input class="field" type="datetime-local" id="recStart" value="${now}">
+      <label>깬 시간 (비우면 '수면 중'으로 기록)</label><input class="field" type="datetime-local" id="recEnd">`;
+  } else if(type==='bath'){
+    inner+=`<label>시간</label><input class="field" type="datetime-local" id="recTime" value="${now}">`;
+  }
+  inner+=`<div class="row" style="margin-top:18px">
+    <button class="btn ghost" onclick="closeRec()">취소</button>
+    <button class="btn" onclick="saveRec('${type}')">저장</button>
+  </div>`;
+  document.getElementById('modalBody').innerHTML=inner;
+  document.getElementById('modalBg').classList.add('on');
+}
+function closeRec(){ document.getElementById('modalBg').classList.remove('on'); }
+function saveRec(type){
+  let rec={id:id(), type};
+  if(type==='feed'){ rec.ts=val('recTime'); rec.amount=parseInt(val('recAmt'))||0; rec.memo=val('recMemo').trim(); }
+  else if(type==='diaper'){ rec.ts=val('recTime'); rec.kind=val('recKind'); }
+  else if(type==='sleep'){ rec.ts=val('recStart'); rec.start=val('recStart'); rec.end=val('recEnd')||null; if(rec.end && new Date(rec.end)<new Date(rec.start)){ alert('깬 시간이 잠든 시간보다 빠를 수 없어요.'); return; } }
+  else if(type==='bath'){ rec.ts=val('recTime'); }
+  if(!rec.ts){ alert('시간을 입력하세요.'); return; }
+  DB.logs.push(rec); save(); closeRec(); renderRecords();
+}
+function val(id){ const e=document.getElementById(id); return e?e.value:''; }
+function endSleep(rid){ const r=DB.logs.find(x=>x.id===rid); if(r) r.end=localNowStr(); save(); closeRec(); renderRecords(); }
+function deleteRec(rid){ DB.logs=DB.logs.filter(r=>r.id!==rid); save(); renderRecords(); }
+
+function dateHeader(d){
+  const y=new Date(); y.setDate(y.getDate()-1);
+  const ys=`${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`;
+  if(d===todayLocal()) return '오늘';
+  if(d===ys) return '어제';
+  const dt=new Date(d); return (dt.getMonth()+1)+'월 '+dt.getDate()+'일 ('+WD[dt.getDay()]+')';
+}
+function renderRecords(){
+  const lastFeed=lastOf('feed'), lastDia=lastOf('diaper'), og=ongoingSleep();
+  let sleepTxt;
+  if(og) sleepTxt='수면 중';
+  else { const ls=[...DB.logs].filter(r=>r.type==='sleep'&&r.end).sort((a,b)=>b.end.localeCompare(a.end))[0]; sleepTxt= ls? agoText(ls.end):'-'; }
+  document.getElementById('recSummary').innerHTML=
+    `<div class="sumcard"><div class="lab">마지막 수유</div><div class="val">${lastFeed?agoText(lastFeed.ts):'-'}</div></div>
+     <div class="sumcard"><div class="lab">마지막 기저귀</div><div class="val">${lastDia?agoText(lastDia.ts):'-'}</div></div>
+     <div class="sumcard"><div class="lab">수면</div><div class="val">${sleepTxt}</div></div>`;
+  const list=document.getElementById('timelineList');
+  if(!DB.logs.length){ list.innerHTML='<div class="empty">아직 기록이 없어요. 위 버튼으로 기록해 보세요 ✨</div>'; return; }
+  const items=[...DB.logs].sort((a,b)=>(b.ts||'').localeCompare(a.ts||''));
+  let html='', cur='';
+  items.forEach(r=>{
+    const d=(r.ts||'').slice(0,10);
+    if(d!==cur){ cur=d; html+=`<div style="margin:12px 0 2px;font-weight:800;font-size:13.5px">${dateHeader(d)}</div>`; }
+    const m=REC[r.type]; let detail='';
+    if(r.type==='feed') detail=(r.amount?r.amount+'ml':'')+(r.memo?((r.amount?' · ':'')+esc(r.memo)):'');
+    else if(r.type==='diaper') detail=r.kind||'';
+    else if(r.type==='sleep') detail= r.end? (durText(durMin(r.start,r.end))+' · '+r.start.slice(11,16)+'~'+r.end.slice(11,16)) : '진행 중 💤';
+    else if(r.type==='bath') detail='목욕 완료';
+    html+=`<div style="display:flex;align-items:center;gap:9px;padding:9px 2px;border-bottom:1px solid var(--line)">
+      <div style="font-size:20px;width:28px;text-align:center">${m.ic}</div>
+      <div style="width:44px;font-weight:700;font-size:13px;color:var(--sub)">${(r.ts||'').slice(11,16)}</div>
+      <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px;color:${m.color}">${m.name}</div><div class="li-sub">${detail}</div></div>
+      <button class="iconbtn" onclick="deleteRec('${r.id}')">🗑️</button>
+    </div>`;
+  });
+  list.innerHTML=html;
+}
+function renderStats(){
+  const t=todayLocal();
+  const today=DB.logs.filter(r=>(r.ts||'').slice(0,10)===t);
+  const feeds=today.filter(r=>r.type==='feed');
+  const feedSum=feeds.reduce((s,r)=>s+(r.amount||0),0);
+  const pee=today.filter(r=>r.type==='diaper'&&(r.kind==='소변'||r.kind==='소변+대변')).length;
+  const poo=today.filter(r=>r.type==='diaper'&&(r.kind==='대변'||r.kind==='소변+대변')).length;
+  const sleepMin=today.filter(r=>r.type==='sleep'&&r.end).reduce((s,r)=>s+durMin(r.start,r.end),0);
+  const baths=today.filter(r=>r.type==='bath').length;
+  document.getElementById('statToday').innerHTML=
+    `<div class="sumrow">
+       <div class="sumcard"><div class="lab">🍼 수유</div><div class="val">${feeds.length}회 · ${feedSum}ml</div></div>
+       <div class="sumcard"><div class="lab">😴 총 수면</div><div class="val">${durText(sleepMin)}</div></div>
+     </div>
+     <div class="sumrow">
+       <div class="sumcard"><div class="lab">🧷 소변</div><div class="val">${pee}회</div></div>
+       <div class="sumcard"><div class="lab">💩 대변</div><div class="val">${poo}회</div></div>
+       <div class="sumcard"><div class="lab">🛁 목욕</div><div class="val">${baths}회</div></div>
+     </div>`;
+  let maxH=1; const days=[];
+  for(let i=6;i>=0;i--){
+    const dd=new Date(); dd.setDate(dd.getDate()-i);
+    const k=`${dd.getFullYear()}-${pad(dd.getMonth()+1)}-${pad(dd.getDate())}`;
+    const dl=DB.logs.filter(r=>(r.ts||'').slice(0,10)===k);
+    const sm=dl.filter(r=>r.type==='sleep'&&r.end).reduce((s,r)=>s+durMin(r.start,r.end),0);
+    const fc=dl.filter(r=>r.type==='feed').length;
+    const sh=sm/60; if(sh>maxH) maxH=sh;
+    days.push({dd,sh,fc});
+  }
+  document.getElementById('statWeek').innerHTML = days.map(o=>{
+    const lbl=(o.dd.getMonth()+1)+'/'+o.dd.getDate();
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0">
+      <div style="width:40px;font-size:12px;color:var(--sub)">${lbl}</div>
+      <div class="stat-bar" style="flex:1"><div style="width:${Math.round(o.sh/maxH*100)}%;background:#8a7fc2"></div></div>
+      <div style="width:104px;text-align:right;font-size:12px">😴 ${o.sh.toFixed(1)}h · 🍼 ${o.fc}</div>
+    </div>`;
+  }).join('');
+}
+
 /* ---------- util ---------- */
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -447,7 +654,7 @@ function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 // 날짜 기본값 = 오늘
 document.getElementById('evDate').value = todayStr();
 // 날짜가 바뀌면 집안일 자동 초기화 안내(자동으로 끄지 않고 안내만 — 데이터 보존)
-renderDayPick(); renderChores(); renderEvents(); renderMilk();
+renderDayPick(); renderChores(); renderEvents(); renderMilk(); renderRecords();
 </script>
 </body>
 </html>
