@@ -207,6 +207,23 @@
     </div>
   </section>
 
+  <!-- ============ 메모 (부부 공용 일정) ============ -->
+  <section class="tab" id="tab-notes">
+    <div class="card">
+      <h2>📌 우리 메모 · 일정</h2>
+      <p class="muted" style="margin-top:0">부부 공용으로 중요한 일정을 적어두세요.</p>
+      <div class="row">
+        <input class="field" type="date" id="noteDate">
+        <input class="field" type="time" id="noteTime" style="flex:0 0 40%">
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input class="field" id="noteText" placeholder="내용 (예: 결혼기념일, 부모님 방문)">
+        <button class="btn" style="flex:0 0 auto" onclick="addNote()">추가</button>
+      </div>
+      <ul class="list" id="noteList" style="margin-top:8px"></ul>
+    </div>
+  </section>
+
   <!-- ============ 기록 (타임라인/통계) ============ -->
   <section class="tab" id="tab-rec">
     <div class="seg">
@@ -282,6 +299,7 @@
 <nav>
   <button class="active" data-tab="tab-home" onclick="go(this)"><span class="ic">🧹</span>집안일</button>
   <button data-tab="tab-cal" onclick="go(this)"><span class="ic">📅</span>일정</button>
+  <button data-tab="tab-notes" onclick="go(this)"><span class="ic">📌</span>메모</button>
   <button data-tab="tab-rec" onclick="go(this)"><span class="ic">📝</span>기록</button>
   <button data-tab="tab-milk" onclick="go(this)"><span class="ic">🍼</span>분유</button>
 </nav>
@@ -314,6 +332,7 @@ function migrate(d){
     d.choreDone=nd;
   }
   d.logs ??= [];
+  d.notes ??= [];
   delete d.chores; // 구버전 정리
   return d;
 }
@@ -344,6 +363,7 @@ function seed(){
     choreRules: defaultRules(),
     choreDone: {},
     logs:[],
+    notes:[],
     events:[],
     milk: defaultMilk(),
     lastReset: todayStr()
@@ -532,6 +552,41 @@ function genVaccines(){
   });
   save(); renderEvents();
   alert(added+'건의 접종 일정을 추가했어요. 일정 탭에서 확인하세요!');
+}
+
+/* ---------- 메모 (부부 공용 일정) ---------- */
+function addNote(){
+  const d=document.getElementById('noteDate').value;
+  const tm=document.getElementById('noteTime').value;
+  const tx=document.getElementById('noteText').value.trim();
+  if(!d||!tx){ alert('날짜와 내용을 입력하세요.'); return; }
+  DB.notes.push({id:id(), d, tm, t:tx, done:false});
+  document.getElementById('noteText').value=''; document.getElementById('noteTime').value='';
+  save(); renderNotes();
+}
+function toggleNote(rid){ const n=DB.notes.find(x=>x.id===rid); if(n){ n.done=!n.done; save(); renderNotes(); } }
+function delNote(rid){ DB.notes=DB.notes.filter(x=>x.id!==rid); save(); renderNotes(); }
+function renderNotes(){
+  const ul=document.getElementById('noteList');
+  if(!DB.notes.length){ ul.innerHTML='<div class="empty">적어둔 일정이 없어요 📌</div>'; return; }
+  const sorted=[...DB.notes].sort((a,b)=> (a.d+(a.tm||'99:99')).localeCompare(b.d+(b.tm||'99:99')) );
+  ul.innerHTML = sorted.map(n=>{
+    const dd=dayDiff(n.d);
+    let chip;
+    if(n.done) chip='<span class="chip past">완료</span>';
+    else if(dd<0) chip='<span class="chip past">지남</span>';
+    else if(dd===0) chip='<span class="chip today">오늘</span>';
+    else if(dd<=7) chip=`<span class="chip soon">D-${dd}</span>`;
+    else chip=`<span class="chip">D-${dd}</span>`;
+    return `<li class="${n.done?'done':''}">
+      <div class="check ${n.done?'on':''}" onclick="toggleNote('${n.id}')">${n.done?'✓':''}</div>
+      <div class="li-body">
+        <div class="li-title">${chip}${esc(n.t)}</div>
+        <div class="li-sub">${n.d}${n.tm?' · '+n.tm:''}</div>
+      </div>
+      <button class="iconbtn" onclick="delNote('${n.id}')">🗑️</button>
+    </li>`;
+  }).join('');
 }
 
 /* ---------- 분유 ---------- */
@@ -800,11 +855,12 @@ function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 /* ---------- init ---------- */
 // 날짜 기본값 = 오늘
 document.getElementById('evDate').value = todayStr();
+document.getElementById('noteDate').value = todayStr();
 // 날짜가 바뀌면 집안일 자동 초기화 안내(자동으로 끄지 않고 안내만 — 데이터 보존)
 function refreshHome(){ _selDay=new Date().getDay(); renderDayBar(); renderChores(); }
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshHome(); });
 window.addEventListener('focus', refreshHome);
-renderDayPick(); renderDayBar(); renderChores(); renderEvents(); renderMilk(); renderRecords();
+renderDayPick(); renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords();
 </script>
 </body>
 </html>
