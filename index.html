@@ -106,12 +106,27 @@
   <section class="tab active" id="tab-home">
     <div class="card">
       <h2>🧹 오늘 할 집안일</h2>
-      <div class="row">
-        <input class="field" id="choreInput" placeholder="예: 젖병 소독, 빨래 돌리기">
-        <button class="btn" style="flex:0 0 auto" onclick="addChore()">추가</button>
+      <div class="muted" id="todayLabel" style="margin-bottom:4px"></div>
+      <div id="todayChores"></div>
+      <div class="muted" style="margin-top:10px">✅ 체크는 매일 자정에 자동으로 초기화돼요.</div>
+    </div>
+
+    <div class="card">
+      <h2>🔁 반복 일정 추가 / 관리</h2>
+      <p class="muted" style="margin-top:0">새 집안일을 주기별로 추가하거나, 아래 목록에서 삭제하세요.</p>
+      <input class="field" id="ruleTitle" placeholder="할 일 이름 (예: 분리수거)">
+      <div class="seg" id="ruleFreq" style="margin-top:8px">
+        <button data-f="daily" class="on" onclick="pickFreq(this)">매일</button>
+        <button data-f="weekly" onclick="pickFreq(this)">요일 선택</button>
+        <button data-f="everyother" onclick="pickFreq(this)">격일</button>
       </div>
-      <div style="margin-top:8px" class="muted">완료한 항목은 체크하세요. <a href="#" onclick="resetChores();return false;" style="color:var(--pink-d);font-weight:700;text-decoration:none">오늘 완료 초기화</a></div>
-      <ul class="list" id="choreList" style="margin-top:6px"></ul>
+      <div id="dayPick" style="display:none; margin-bottom:8px"></div>
+      <div class="seg" id="ruleTime">
+        <button data-t="아무때나" class="on" onclick="pickTime(this)">아무때나</button>
+        <button data-t="출근 전" onclick="pickTime(this)">출근 전</button>
+      </div>
+      <button class="btn" style="width:100%" onclick="addRule()">＋ 반복 일정 추가</button>
+      <ul class="list" id="ruleList" style="margin-top:10px"></ul>
     </div>
   </section>
 
@@ -188,18 +203,32 @@ function load(){
   return seed();
 }
 function migrate(d){
-  d.chores ??= []; d.events ??= []; d.milk ??= seed().milk; d.lastReset ??= todayStr();
+  d.events ??= []; d.milk ??= seed().milk; d.lastReset ??= todayStr();
+  if(!d.choreRules || !d.choreRules.length) d.choreRules = defaultRules();
+  d.choreDone ??= {};
+  delete d.chores; // 구버전 정리
   return d;
+}
+function defaultRules(){
+  const t = todayStr();
+  return [
+    {id:id(), t:"재활용 분리수거", rule:"weekly", days:[2,3], time:"출근 전"},
+    {id:id(), t:"제습기 물 버리기", rule:"daily", days:[], time:"출근 전"},
+    {id:id(), t:"환기 시키기", rule:"daily", days:[], time:"출근 전"},
+    {id:id(), t:"일반쓰레기 버리기 (있으면)", rule:"daily", days:[], time:"아무때나"},
+    {id:id(), t:"청소기 돌리기", rule:"daily", days:[], time:"아무때나"},
+    {id:id(), t:"이솔이 빨래", rule:"daily", days:[], time:"아무때나"},
+    {id:id(), t:"물걸레 청소", rule:"weekly", days:[3,0], time:"아무때나"},
+    {id:id(), t:"라비킷·베이비브레짜·보르르 세척", rule:"weekly", days:[6,0], time:"아무때나"},
+    {id:id(), t:"이솔이 목욕 (격일)", rule:"everyother", days:[], time:"아무때나", anchor:t},
+  ];
 }
 function seed(){
   // 기준: 물 100ml = 분유 4스푼 (25ml당 1스푼)
   const mk = ml => ({ml, water:ml, scoop:+(ml/25).toFixed(1)});
   return {
-    chores:[
-      {id:id(), t:"젖병 소독", done:false},
-      {id:id(), t:"빨래 돌리기", done:false},
-      {id:id(), t:"아이 옷 정리", done:false},
-    ],
+    choreRules: defaultRules(),
+    choreDone: {},
     events:[],
     milk:[60,90,100,120,150,180,210,240].map(mk),
     lastReset: todayStr()
@@ -217,23 +246,92 @@ function go(btn){
   window.scrollTo(0,0);
 }
 
-/* ---------- 집안일 ---------- */
-function addChore(){
-  const el = document.getElementById('choreInput');
-  const t = el.value.trim(); if(!t) return;
-  DB.chores.push({id:id(), t, done:false}); el.value=''; save(); renderChores();
+/* ---------- 집안일 (반복 일정) ---------- */
+const WD = ['일','월','화','수','목','금','토'];
+let _freq='daily', _time='아무때나', _days=new Set();
+
+function isActiveToday(r){
+  const today=new Date(todayStr());
+  if(r.rule==='daily') return true;
+  if(r.rule==='weekly') return (r.days||[]).includes(today.getDay());
+  if(r.rule==='everyother'){
+    const diff=Math.round((today-new Date(r.anchor||todayStr()))/86400000);
+    return (((diff%2)+2)%2)===0;
+  }
+  return true;
 }
-function toggleChore(i){ DB.chores[i].done=!DB.chores[i].done; save(); renderChores(); }
-function delChore(i){ DB.chores.splice(i,1); save(); renderChores(); }
-function resetChores(){ DB.chores.forEach(c=>c.done=false); DB.lastReset=todayStr(); save(); renderChores(); }
+function scheduleLabel(r){
+  let s;
+  if(r.rule==='daily') s='매일';
+  else if(r.rule==='everyother') s='격일';
+  else s=(r.days||[]).slice().sort((a,b)=>((a+6)%7)-((b+6)%7)).map(d=>WD[d]).join('·');
+  if(r.time==='출근 전') s+=' · 출근 전';
+  return s;
+}
+function toggleChore(rid){
+  if(DB.choreDone[rid]===todayStr()) delete DB.choreDone[rid];
+  else DB.choreDone[rid]=todayStr();
+  save(); renderChores();
+}
+function delRule(rid){
+  DB.choreRules=DB.choreRules.filter(r=>r.id!==rid);
+  delete DB.choreDone[rid];
+  save(); renderChores();
+}
+function pickFreq(btn){
+  _freq=btn.dataset.f;
+  [...btn.parentNode.children].forEach(b=>b.classList.remove('on')); btn.classList.add('on');
+  document.getElementById('dayPick').style.display = _freq==='weekly'?'block':'none';
+}
+function pickTime(btn){
+  _time=btn.dataset.t;
+  [...btn.parentNode.children].forEach(b=>b.classList.remove('on')); btn.classList.add('on');
+}
+function renderDayPick(){
+  const order=[1,2,3,4,5,6,0];
+  document.getElementById('dayPick').innerHTML='<div class="seg" style="flex-wrap:wrap">'+
+    order.map(d=>`<button type="button" class="${_days.has(d)?'on':''}" style="flex:0 0 calc(25% - 5px)" onclick="toggleDay(${d},this)">${WD[d]}</button>`).join('')+'</div>';
+}
+function toggleDay(d,btn){
+  if(_days.has(d)){ _days.delete(d); btn.classList.remove('on'); }
+  else{ _days.add(d); btn.classList.add('on'); }
+}
+function addRule(){
+  const el=document.getElementById('ruleTitle'); const t=el.value.trim();
+  if(!t){ alert('할 일 이름을 입력하세요.'); return; }
+  if(_freq==='weekly' && _days.size===0){ alert('요일을 한 개 이상 선택하세요.'); return; }
+  const r={id:id(), t, rule:_freq, days:[..._days], time:_time};
+  if(_freq==='everyother') r.anchor=todayStr();
+  DB.choreRules.push(r); el.value=''; _days.clear();
+  save(); renderDayPick(); renderChores();
+}
 function renderChores(){
-  const ul = document.getElementById('choreList');
-  if(!DB.chores.length){ ul.innerHTML='<div class="empty">할 일을 추가해 보세요 ✨</div>'; return; }
-  ul.innerHTML = DB.chores.map((c,i)=>`
-    <li class="${c.done?'done':''}">
-      <div class="check ${c.done?'on':''}" onclick="toggleChore(${i})">${c.done?'✓':''}</div>
-      <div class="li-body"><div class="li-title">${esc(c.t)}</div></div>
-      <button class="iconbtn" onclick="delChore(${i})">🗑️</button>
+  const today=new Date(todayStr());
+  document.getElementById('todayLabel').textContent =
+    (today.getMonth()+1)+'월 '+today.getDate()+'일 ('+WD[today.getDay()]+'요일)';
+  const groups=[{key:'출근 전',icon:'🌅'},{key:'아무때나',icon:'🏠'}];
+  let html='';
+  groups.forEach(g=>{
+    const items=DB.choreRules.filter(r=>r.time===g.key && isActiveToday(r));
+    if(!items.length) return;
+    html+=`<div style="margin:12px 0 2px;font-weight:800;font-size:13.5px">${g.icon} ${g.key}</div>`;
+    html+='<ul class="list">'+items.map(r=>{
+      const on=DB.choreDone[r.id]===todayStr();
+      return `<li class="${on?'done':''}">
+        <div class="check ${on?'on':''}" onclick="toggleChore('${r.id}')">${on?'✓':''}</div>
+        <div class="li-body"><div class="li-title">${esc(r.t)}</div></div>
+      </li>`;
+    }).join('')+'</ul>';
+  });
+  document.getElementById('todayChores').innerHTML = html || '<div class="empty">오늘은 등록된 집안일이 없어요 ✨</div>';
+  const rl=document.getElementById('ruleList');
+  rl.innerHTML = DB.choreRules.map(r=>`
+    <li>
+      <div class="li-body">
+        <div class="li-title" style="font-size:14px">${esc(r.t)}</div>
+        <div class="li-sub">${scheduleLabel(r)}</div>
+      </div>
+      <button class="iconbtn" onclick="delRule('${r.id}')">🗑️</button>
     </li>`).join('');
 }
 
@@ -349,7 +447,7 @@ function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 // 날짜 기본값 = 오늘
 document.getElementById('evDate').value = todayStr();
 // 날짜가 바뀌면 집안일 자동 초기화 안내(자동으로 끄지 않고 안내만 — 데이터 보존)
-renderChores(); renderEvents(); renderMilk();
+renderDayPick(); renderChores(); renderEvents(); renderMilk();
 </script>
 </body>
 </html>
