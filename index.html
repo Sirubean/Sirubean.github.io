@@ -239,7 +239,14 @@
         <input class="field" id="evMemo" placeholder="메모 (병원 이름, 준비물 등)">
         <button class="btn blue" style="flex:0 0 auto" onclick="addEvent()">추가</button>
       </div>
-      <ul class="list" id="eventList" style="margin-top:8px"></ul>
+      <label class="flbl" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="evYearly" style="width:auto"> 매년 반복 (생일·기념일)</label>
+      <ul class="list" id="eventList" style="margin-top:4px"></ul>
+    </div>
+
+    <div class="card">
+      <h2>🎂 기념일 자동 추가</h2>
+      <p class="muted" style="margin-top:0">생년월일 기준 백일·반돌·돌 등을 일정에 넣어드려요.</p>
+      <button class="btn" style="width:100%" onclick="genMilestones()">🎉 기념일 생성</button>
     </div>
 
     <div class="card">
@@ -315,6 +322,14 @@
       <div class="card">
         <h2>📈 최근 7일 (수면시간 · 수유횟수)</h2>
         <div id="statWeek"></div>
+      </div>
+      <div class="card">
+        <h2>📊 패턴 요약</h2>
+        <div class="seg" id="statPeriod">
+          <button class="on" data-d="7" onclick="setStatPeriod(7)">최근 7일</button>
+          <button data-d="30" onclick="setStatPeriod(30)">최근 30일</button>
+        </div>
+        <div id="statPattern"></div>
       </div>
     </div>
 
@@ -777,36 +792,59 @@ function addEvent(){
   const d=document.getElementById('evDate').value;
   const t=document.getElementById('evTitle').value.trim();
   const m=document.getElementById('evMemo').value.trim();
+  const yr=document.getElementById('evYearly').checked;
   if(!d||!t){ toast('날짜와 일정 내용을 입력하세요.'); return; }
-  DB.events.push({id:id(), d, t, m, done:false});
-  document.getElementById('evTitle').value=''; document.getElementById('evMemo').value='';
+  DB.events.push({id:id(), d, t, m, done:false, yearly:yr});
+  document.getElementById('evTitle').value=''; document.getElementById('evMemo').value=''; document.getElementById('evYearly').checked=false;
   save(); renderEvents();
 }
 function toggleEvent(i){ DB.events[i].done=!DB.events[i].done; save(); renderEvents(); }
 function delEvent(i){ DB.events.splice(i,1); save(); renderEvents(); }
 function dayDiff(d){ const ms=new Date(d)-new Date(todayStr()); return Math.round(ms/86400000); }
+function evDate(ev){
+  if(!ev || !ev.yearly) return ev.d;
+  const o=new Date(ev.d+'T00:00'); const now=new Date();
+  const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  let cand=new Date(now.getFullYear(),o.getMonth(),o.getDate());
+  if(cand<t0) cand=new Date(now.getFullYear()+1,o.getMonth(),o.getDate());
+  return `${cand.getFullYear()}-${pad(cand.getMonth()+1)}-${pad(cand.getDate())}`;
+}
 function renderEvents(){
   const ul=document.getElementById('eventList');
   if(!DB.events.length){ ul.innerHTML='<div class="empty">예정된 일정이 없어요 🎈</div>'; return; }
-  const sorted=[...DB.events].sort((a,b)=>a.d.localeCompare(b.d));
+  const sorted=[...DB.events].sort((a,b)=>evDate(a).localeCompare(evDate(b)));
   ul.innerHTML = sorted.map(ev=>{
     const i=DB.events.indexOf(ev);
-    const dd=dayDiff(ev.d);
+    const ed=evDate(ev); const dd=dayDiff(ed);
     let chip;
-    if(ev.done) chip='<span class="chip past">완료</span>';
+    if(ev.done && !ev.yearly) chip='<span class="chip past">완료</span>';
     else if(dd<0) chip='<span class="chip past">지남</span>';
     else if(dd===0) chip='<span class="chip today">오늘</span>';
     else if(dd<=7) chip=`<span class="chip soon">D-${dd}</span>`;
     else chip=`<span class="chip">D-${dd}</span>`;
-    return `<li class="${ev.done?'done':''}">
+    return `<li class="${ev.done&&!ev.yearly?'done':''}">
       <div class="check ${ev.done?'on':''}" onclick="toggleEvent(${i})">${ev.done?'✓':''}</div>
       <div class="li-body" onclick="editEvent('${ev.id}')" style="cursor:pointer">
-        <div class="li-title">${chip}${esc(ev.t)}</div>
-        <div class="li-sub">${ev.d}${ev.m?' · '+esc(ev.m):''}</div>
+        <div class="li-title">${chip}${esc(ev.t)}${ev.yearly?' <span class="muted" style="font-size:11px">🔁매년</span>':''}</div>
+        <div class="li-sub">${ed}${ev.m?' · '+esc(ev.m):''}</div>
       </div>
       <button class="iconbtn" onclick="delEvent(${i})">🗑️</button>
     </li>`;
   }).join('');
+}
+function genMilestones(){
+  const b=DB.baby||{}; if(!b.birth){ toast('아이 정보에서 생년월일을 먼저 입력하세요.'); return; }
+  if(!confirm('백일·반돌·돌 등 기념일을 일정에 추가할까요?')) return;
+  const base=new Date(b.birth+'T00:00');
+  const dStr=dt=>`${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+  const pD=n=>{ const d=new Date(base); d.setDate(d.getDate()+n); return dStr(d); };
+  const pM=n=>{ const d=new Date(base); d.setMonth(d.getMonth()+n); return dStr(d); };
+  const pY=n=>{ const d=new Date(base); d.setFullYear(d.getFullYear()+n); return dStr(d); };
+  const M=[['🎉 50일',pD(49)],['🎉 백일(100일)',pD(99)],['🎉 200일',pD(199)],['🎉 반돌(6개월)',pM(6)],['🎂 첫돌(돌)',pY(1)],['🎂 두 돌',pY(2)]];
+  let added=0;
+  M.forEach(([t,d])=>{ if(!DB.events.some(e=>e.t===t)){ DB.events.push({id:id(), d, t, m:'기념일', done:false}); added++; } });
+  save(); renderEvents(); renderDash();
+  toast(added?added+'개의 기념일을 추가했어요 🎉':'이미 추가돼 있어요');
 }
 
 function editEvent(eid){
@@ -1255,6 +1293,35 @@ function renderStats(){
     </div>`;
   }).join('');
   renderClock();
+  renderPattern();
+}
+let _statPeriod=7;
+function setStatPeriod(d){ _statPeriod=d; document.querySelectorAll('#statPeriod button').forEach(b=>b.classList.toggle('on',+b.dataset.d===d)); renderPattern(); }
+function renderPattern(){
+  const el=document.getElementById('statPattern'); if(!el) return;
+  const per=_statPeriod;
+  const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-(per-1));
+  const cut=`${cutoff.getFullYear()}-${pad(cutoff.getMonth()+1)}-${pad(cutoff.getDate())}`;
+  const inR=r=>(r.ts||'').slice(0,10)>=cut;
+  const feeds=DB.logs.filter(r=>r.type==='feed'&&inR(r));
+  const nurs=DB.logs.filter(r=>r.type==='nursing'&&inR(r));
+  const diapers=DB.logs.filter(r=>r.type==='diaper'&&inR(r));
+  const sleeps=DB.logs.filter(r=>r.type==='sleep'&&r.end&&inR(r));
+  const feedSum=feeds.reduce((s,r)=>s+(r.amount||0),0);
+  const sleepMin=sleeps.reduce((s,r)=>s+durMin(r.start,r.end),0);
+  const night=[...feeds,...nurs].filter(r=>{ const h=+(r.ts.slice(11,13)); return h<6; }).length;
+  const times=[...feeds,...nurs].map(r=>new Date(r.ts)).sort((a,b)=>a-b);
+  let intTxt='-'; if(times.length>=2){ let g=0; for(let i=1;i<times.length;i++) g+=(times[i]-times[i-1]); intTxt=durText(Math.round(g/(times.length-1)/60000)); }
+  const rows=[
+    ['🍼 하루 수유', `${((feeds.length+nurs.length)/per).toFixed(1)}회 (분유 ${(feeds.length/per).toFixed(1)}·모유 ${(nurs.length/per).toFixed(1)})`],
+    ['🍼 하루 분유량', `${Math.round(feedSum/per)}ml`],
+    ['⏱️ 평균 수유 간격', intTxt],
+    ['🌙 밤중 수유(0~6시)', `하루 ${(night/per).toFixed(1)}회`],
+    ['😴 하루 수면', durText(Math.round(sleepMin/per))],
+    ['🧷 하루 기저귀', `${(diapers.length/per).toFixed(1)}회`],
+  ];
+  el.innerHTML=rows.map(([a,b])=>`<div class="dash-row"><span>${a}</span><b>${b}</b></div>`).join('')
+    + `<p class="muted" style="margin-top:8px">최근 ${per}일 일평균이에요.</p>`;
 }
 
 /* ---------- 24시간 원형 일과표 ---------- */
@@ -1631,7 +1698,7 @@ function computeReminders(){
   const out=[]; const fh=(DB.settings&&DB.settings.feedHours)||3;
   const lf=lastFeedAny();
   if(lf && !ongoingNursing()){ const mins=Math.round((new Date()-new Date(lf.ts))/60000); if(mins>=fh*60){ const h=Math.floor(mins/60),m=mins%60; out.push({i:'🍼',t:`수유한 지 ${h}시간 ${m}분 지났어요`}); } }
-  [...DB.events].filter(e=>!e.done).forEach(e=>{ const dd=dayDiff(e.d); if(dd<0) out.push({i:'📅',t:`${e.t} — ${-dd}일 지남`}); else if(dd<=3) out.push({i:'📅',t:`${e.t} — ${dd===0?'오늘':'D-'+dd}`}); });
+  [...DB.events].filter(e=>!e.done||e.yearly).forEach(e=>{ const dd=dayDiff(evDate(e)); if(dd<0) out.push({i:'📅',t:`${e.t} — ${-dd}일 지남`}); else if(dd<=3) out.push({i:'📅',t:`${e.t} — ${dd===0?'오늘':'D-'+dd}`}); });
   [...(DB.notes||[])].filter(n=>!n.done).forEach(n=>{ const dd=dayDiff(n.d); const tm=n.tm?(' '+n.tm):''; if(dd===0) out.push({i:'📌',t:`${n.t}${tm} — 오늘`}); else if(dd>0&&dd<=3) out.push({i:'📌',t:`${n.t}${tm} — D-${dd}`}); });
   DB.supplies.forEach(it=>{ const st=supplyStat(it); if(st.rate>0 && st.daysLeft<=3) out.push({i:'🛒',t:`${it.name} 곧 소진 (${st.daysLeft<0?'지남':'D-'+st.daysLeft})`}); });
   return out;
@@ -1683,8 +1750,8 @@ function renderDash(){
   const doneChores=activeChores.filter(r=>DB.choreDone[r.id+'__'+tk]).length;
   const lf=lastFeedAny(), ld=lastOf('diaper'), og=ongoingSleep();
   const sleepTxt = og?'수면 중 😴':(()=>{ const ls=[...DB.logs].filter(r=>r.type==='sleep'&&r.end).sort((a,b)=>b.end.localeCompare(a.end))[0]; return ls?agoText(ls.end):'-'; })();
-  const futureEv=[...DB.events].filter(e=>!e.done && e.d>=tk).sort((a,b)=>a.d.localeCompare(b.d))[0];
-  let evTxt='-'; if(futureEv){ const dd=dayDiff(futureEv.d); evTxt=`${esc(futureEv.t)} <b>${dd===0?'오늘':'D-'+dd}</b>`; }
+  const futureEv=[...DB.events].filter(e=>!e.done||e.yearly).map(e=>({e,ed:evDate(e)})).filter(o=>o.ed>=tk).sort((a,b)=>a.ed.localeCompare(b.ed))[0];
+  let evTxt='-'; if(futureEv){ const dd=dayDiff(futureEv.ed); evTxt=`${esc(futureEv.e.t)} <b>${dd===0?'오늘':'D-'+dd}</b>`; }
   const todayMemos=[...(DB.notes||[])].filter(n=>!n.done && n.d===tk).sort((a,b)=>(a.tm||'99').localeCompare(b.tm||'99'));
   const memoRow = todayMemos.length ? `<div class="dash-row"><span>📌 오늘 메모</span><span style="text-align:right;max-width:62%">${todayMemos.map(n=>esc((n.tm?n.tm+' ':'')+n.t)).join('<br>')}</span></div>` : '';
   document.getElementById('dashToday').innerHTML=
