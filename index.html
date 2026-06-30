@@ -141,11 +141,14 @@
   .daybar button{flex:1; padding:10px 0; border-radius:11px; border:1.5px solid var(--line); background:#fff; font-weight:800; font-size:13px; color:var(--sub); cursor:pointer; position:relative;}
   .daybar button.on{background:var(--pink); color:#fff; border-color:var(--pink);}
   .todot{position:absolute; bottom:4px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:currentColor; opacity:.75;}
+  .sync-btn{position:absolute; top:calc(15px + env(safe-area-inset-top)); right:16px; background:rgba(255,255,255,.25); color:#fff; border:none; border-radius:999px; padding:7px 12px; font-size:12px; font-weight:800; cursor:pointer;}
+  .sync-btn.on{background:#fff; color:var(--pink-d);}
 </style>
 </head>
 <body>
 
 <header>
+  <button class="sync-btn" id="syncBtn" onclick="openSync()">🔗 연동</button>
   <h1 id="hdrTitle">🍼 우리아이 케어</h1>
   <p id="hdrSub">집안일 · 일정 · 분유를 한 곳에서</p>
 </header>
@@ -304,9 +307,23 @@
   <button data-tab="tab-milk" onclick="go(this)"><span class="ic">🍼</span>분유</button>
 </nav>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
+/* ---------- Firebase 설정 ---------- */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC9sLhv50BJlGNaLzS1yllgQJXaNyHb5x8",
+  authDomain: "isol-0408-860d6.firebaseapp.com",
+  databaseURL: "https://isol-0408-860d6-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "isol-0408-860d6",
+  storageBucket: "isol-0408-860d6.firebasestorage.app",
+  messagingSenderId: "244400267944",
+  appId: "1:244400267944:web:785b8953d03d5aa12e989d"
+};
+
 /* ---------- storage ---------- */
 const KEY = "babycare_v1";
+const FAMKEY = "babycare_family";
 const todayStr = () => new Date().toISOString().slice(0,10);
 let DB = load();
 function load(){
@@ -369,8 +386,91 @@ function seed(){
     lastReset: todayStr()
   };
 }
-function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); }
+function save(){
+  DB._updated = Date.now();
+  localStorage.setItem(KEY, JSON.stringify(DB));
+  if(_famRef){ _famRef.set(DB).catch(e=>console.warn('동기화 쓰기 실패', e)); }
+}
 function id(){ return Math.random().toString(36).slice(2,9); }
+
+/* ---------- 부부 연동 (Firebase) ---------- */
+let _familyCode = localStorage.getItem(FAMKEY) || null;
+let _fbReady=false, _fdb=null, _famRef=null;
+function initFirebase(){
+  try{
+    if(typeof firebase==='undefined'){ console.warn('Firebase SDK 미로드'); return; }
+    firebase.initializeApp(FIREBASE_CONFIG);
+    _fdb = firebase.database();
+    _fbReady = true;
+    if(_familyCode) attachFamily(_familyCode);
+  }catch(e){ console.warn('Firebase 초기화 실패', e); }
+  updateSyncBadge();
+}
+function attachFamily(code){
+  if(!_fbReady) return;
+  if(_famRef) _famRef.off();
+  _familyCode = code; localStorage.setItem(FAMKEY, code);
+  _famRef = _fdb.ref('families/'+code);
+  let first=true;
+  _famRef.on('value', snap=>{
+    const remote = snap.val();
+    if(first){
+      first=false;
+      if(remote && remote._updated){            // 기존 가족 데이터 채택
+        DB = migrate(remote); localStorage.setItem(KEY, JSON.stringify(DB)); renderAll();
+      }else{                                     // 비어있으면 내 데이터로 시작
+        DB._updated = Date.now(); _famRef.set(DB);
+      }
+      updateSyncBadge(); return;
+    }
+    if(remote && remote._updated && remote._updated !== DB._updated){
+      DB = migrate(remote); localStorage.setItem(KEY, JSON.stringify(DB)); renderAll();
+    }
+  }, err=>console.warn('동기화 읽기 실패', err));
+  updateSyncBadge();
+}
+function genCode(){ return Math.random().toString(36).slice(2,6)+'-'+Math.random().toString(36).slice(2,6); }
+function newFamily(){ attachFamily(genCode()); openSync(); }
+function joinByInput(){
+  const code=(val('famInput')||'').trim().toLowerCase();
+  if(!code){ alert('가족 코드를 입력하세요.'); return; }
+  if(!confirm('받은 코드로 연동하면 이 폰의 기존 데이터가 공유 데이터로 바뀝니다. 연동할까요?')) return;
+  attachFamily(code); closeRec();
+}
+function leaveFamily(){
+  if(_famRef){ _famRef.off(); _famRef=null; }
+  _familyCode=null; localStorage.removeItem(FAMKEY);
+  closeRec(); updateSyncBadge();
+}
+function copyCode(){ if(_familyCode){ navigator.clipboard?.writeText(_familyCode); alert('코드를 복사했어요: '+_familyCode); } }
+function updateSyncBadge(){
+  const b=document.getElementById('syncBtn'); if(!b) return;
+  if(_familyCode){ b.textContent='🔗 연동됨'; b.classList.add('on'); }
+  else{ b.textContent='🔗 연동'; b.classList.remove('on'); }
+}
+function openSync(){
+  let inner='<h3>👨‍👩‍👧 부부 연동</h3>';
+  if(!_fbReady) inner+='<p class="muted">⚠️ 연동 서버에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.</p>';
+  if(_familyCode){
+    inner+=`<p class="muted" style="margin-bottom:2px">현재 가족 코드</p>
+      <div style="font-size:24px;font-weight:800;color:var(--pink-d);text-align:center;letter-spacing:1px">${esc(_familyCode)}</div>
+      <p class="muted" style="text-align:center;margin-top:6px">상대방 폰에서 이 코드로 연동하면 실시간으로 같이 써요.</p>
+      <button class="btn" style="width:100%;margin-top:12px" onclick="copyCode()">코드 복사</button>
+      <button class="btn ghost" style="width:100%;margin-top:8px" onclick="leaveFamily()">이 폰 연동 해제</button>`;
+  }else{
+    inner+=`<p class="muted">한 명이 <b>새 코드</b>를 만들고, 상대방이 그 코드를 입력하면 끝나요.</p>
+      <button class="btn" style="width:100%" onclick="newFamily()">＋ 새 코드 만들기 (이 폰 데이터로 시작)</button>
+      <label>받은 코드로 연동</label>
+      <div class="row"><input class="field" id="famInput" placeholder="예: a1b2-c3d4"><button class="btn blue" style="flex:0 0 auto" onclick="joinByInput()">연동</button></div>
+      <p class="muted" style="margin-top:8px">⚠️ 받은 코드로 연동하면 이 폰의 기존 데이터는 공유 데이터로 바뀝니다.</p>`;
+  }
+  inner+=`<div class="row" style="margin-top:16px"><button class="btn ghost" onclick="closeRec()">닫기</button></div>`;
+  document.getElementById('modalBody').innerHTML=inner;
+  document.getElementById('modalBg').classList.add('on');
+}
+function renderAll(){
+  try{ renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords(); }catch(e){ console.warn(e); }
+}
 
 /* ---------- nav ---------- */
 function go(btn){
@@ -861,6 +961,7 @@ function refreshHome(){ _selDay=new Date().getDay(); renderDayBar(); renderChore
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshHome(); });
 window.addEventListener('focus', refreshHome);
 renderDayPick(); renderDayBar(); renderChores(); renderEvents(); renderNotes(); renderMilk(); renderRecords();
+initFirebase();
 </script>
 </body>
 </html>
