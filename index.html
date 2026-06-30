@@ -114,6 +114,13 @@
   .pill-row{display:flex; gap:8px;}
   .pill{flex:1; padding:17px 4px; border-radius:14px; border:2px solid var(--line); background:#fff; font-weight:800; font-size:16px; color:var(--sub); cursor:pointer;}
   .pill.on{border-color:var(--pink); background:#fff0f4; color:var(--pink-d);}
+  /* 드래그 슬라이더 */
+  input[type=range].slider{ -webkit-appearance:none; appearance:none; width:100%; height:7px; border-radius:7px; background:var(--line); outline:none; margin:6px 0 2px; }
+  input[type=range].slider::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:28px; height:28px; border-radius:50%; background:var(--pink-d); border:3px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.25); cursor:pointer; }
+  input[type=range].slider::-moz-range-thumb{ width:28px; height:28px; border:3px solid #fff; border-radius:50%; background:var(--pink-d); box-shadow:0 1px 5px rgba(0,0,0,.25); cursor:pointer; }
+  input[type=range].slider.green::-webkit-slider-thumb{ background:#22a58e; }
+  input[type=range].slider.green::-moz-range-thumb{ background:#22a58e; }
+  .tick-row{ display:flex; justify-content:space-between; font-size:10.5px; color:var(--sub); padding:0 2px 4px; }
 
   /* bottom nav */
   nav{position:fixed; left:0; right:0; bottom:0; z-index:30;
@@ -579,33 +586,49 @@ function recView(v){
   if(v==='st') renderStats();
 }
 let _amt=120;
+let _base={};   // 슬라이더 기준 시각 (모달 열 때의 '지금')
 function fmtTimeKR(d){ let h=d.getHours(); const ap=h<12?'오전':'오후'; let hh=h%12; if(hh===0)hh=12; return ap+' '+hh+':'+pad(d.getMinutes()); }
+function fmtLocal(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function timeControl(inputId, label){
   return `<label>${label}</label>
     <div class="time-big" id="big_${inputId}">—</div>
-    <div class="time-quick">
-      <button type="button" onclick="adj('${inputId}',-60)">−1시간</button>
+    <input type="range" class="slider" id="sl_${inputId}" min="-240" max="240" step="5" value="0" oninput="slideTime('${inputId}')">
+    <div class="tick-row"><span>−4시간</span><span>−2시간</span><span>지금</span><span>+2시간</span><span>+4시간</span></div>
+    <div class="time-quick" style="margin-top:6px">
       <button type="button" onclick="adj('${inputId}',-10)">−10분</button>
       <button type="button" onclick="adj('${inputId}',null)">지금</button>
       <button type="button" onclick="adj('${inputId}',10)">＋10분</button>
     </div>
-    <input type="datetime-local" class="field" id="${inputId}" onchange="bigUpdate('${inputId}')" style="margin-top:8px">`;
+    <details style="margin-top:8px"><summary class="muted" style="cursor:pointer;font-size:12px">⌚ 정확한 시각 직접 입력</summary>
+      <input type="datetime-local" class="field" id="${inputId}" onchange="adj('${inputId}',0)" style="margin-top:6px"></details>`;
+}
+function writeTime(inputId, d){ document.getElementById(inputId).value=fmtLocal(d); bigUpdate(inputId); syncSlider(inputId); }
+function bigUpdate(inputId){
+  const el=document.getElementById(inputId), big=document.getElementById('big_'+inputId);
+  if(big) big.textContent = el.value ? fmtTimeKR(new Date(el.value)) : '—';
+}
+function syncSlider(inputId){
+  const s=document.getElementById('sl_'+inputId), el=document.getElementById(inputId);
+  if(!s || !el.value || !_base[inputId]) return;
+  let off=Math.round((new Date(el.value)-_base[inputId])/60000);
+  s.value=Math.max(-240, Math.min(240, off));
+}
+function slideTime(inputId){
+  const s=document.getElementById('sl_'+inputId);
+  const d=new Date(_base[inputId].getTime()+(+s.value)*60000);
+  document.getElementById(inputId).value=fmtLocal(d); bigUpdate(inputId);
 }
 function adj(inputId, delta){
   const el=document.getElementById(inputId);
   let d = el.value ? new Date(el.value) : new Date();
   if(delta===null) d=new Date(); else d=new Date(d.getTime()+delta*60000);
-  el.value=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  bigUpdate(inputId);
-}
-function bigUpdate(inputId){
-  const el=document.getElementById(inputId), big=document.getElementById('big_'+inputId);
-  if(big) big.textContent = el.value ? fmtTimeKR(new Date(el.value)) : '—';
+  writeTime(inputId, d);
 }
 function clearEnd(){ const e=document.getElementById('recEnd'); e.value=''; bigUpdate('recEnd'); }
 function setAmtDisplay(){
   const b=document.getElementById('amtBig'); if(b) b.textContent=_amt+' ml';
   const h=document.getElementById('recAmt'); if(h) h.value=_amt;
+  const s=document.getElementById('amtSlider'); if(s && +s.value!==_amt) s.value=_amt;
   document.querySelectorAll('.amt-chips button').forEach(x=>x.classList.toggle('on', +x.dataset.v===_amt));
 }
 function adjAmt(d){ _amt=Math.max(0,_amt+d); setAmtDisplay(); }
@@ -625,6 +648,8 @@ function openRec(type){
     inner+=timeControl('recTime','시간');
     inner+=`<label>먹은 양</label>
       <div class="amt-big" id="amtBig">120 ml</div>
+      <input type="range" class="slider green" id="amtSlider" min="0" max="300" step="5" value="120" oninput="setAmt(+this.value)">
+      <div class="tick-row"><span>0</span><span>150</span><span>300 ml</span></div>
       <div class="amt-quick"><button type="button" onclick="adjAmt(-10)">−10</button><button type="button" onclick="adjAmt(10)">＋10</button></div>
       <div class="amt-chips">${[60,90,120,150,180,200,240].map(v=>`<button type="button" data-v="${v}" onclick="setAmt(${v})">${v}</button>`).join('')}</div>
       <input type="number" id="recAmt" hidden>
@@ -663,8 +688,8 @@ function openRec(type){
     <button class="btn" onclick="saveRec('${type}')">저장</button>
   </div>`;
   document.getElementById('modalBody').innerHTML=inner;
-  const now=localNowStr();
-  ['recTime','recStart'].forEach(idd=>{ const e=document.getElementById(idd); if(e){ e.value=now; bigUpdate(idd); } });
+  const now=new Date();
+  ['recTime','recStart'].forEach(idd=>{ const e=document.getElementById(idd); if(e){ _base[idd]=new Date(now); e.value=fmtLocal(now); const s=document.getElementById('sl_'+idd); if(s) s.value=0; bigUpdate(idd); } });
   if(type==='feed'){ _amt=120; setAmtDisplay(); }
   document.getElementById('modalBg').classList.add('on');
 }
