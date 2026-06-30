@@ -98,7 +98,22 @@
   .modal{background:#fff; width:100%; max-width:560px; margin:0 auto; border-radius:22px 22px 0 0; padding:20px 18px calc(22px + env(safe-area-inset-bottom)); animation:up .25s ease;}
   @keyframes up{from{transform:translateY(50px); opacity:.5;} to{transform:none; opacity:1;}}
   .modal h3{margin:0 0 8px; font-size:17px;}
-  .modal label{display:block; font-size:12.5px; color:var(--sub); margin:11px 0 4px; font-weight:700;}
+  .modal label{display:block; font-size:12.5px; color:var(--sub); margin:13px 0 5px; font-weight:700;}
+  /* 큼직한 입력 컨트롤 */
+  .time-big{font-size:25px; font-weight:800; text-align:center; color:var(--pink-d); margin:2px 0 8px;}
+  .time-quick{display:flex; gap:6px;}
+  .time-quick button{flex:1; padding:9px 2px; border-radius:11px; border:1.5px solid var(--line); background:#fff; font-weight:700; font-size:13px; color:var(--sub); cursor:pointer;}
+  .time-quick button:active{background:#fff0f4;}
+  .amt-big{font-size:32px; font-weight:800; text-align:center; color:#22a58e; margin:6px 0;}
+  .amt-quick{display:flex; gap:8px; margin-bottom:9px;}
+  .amt-quick button{flex:1; padding:11px; border-radius:12px; border:none; background:#eaf6f3; color:#22a58e; font-weight:800; font-size:18px; cursor:pointer;}
+  .amt-quick button:active{transform:scale(.97);}
+  .amt-chips,.memo-chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .amt-chips button,.memo-chips button{padding:8px 13px; border-radius:999px; border:1.5px solid var(--line); background:#fff; font-weight:700; font-size:13px; color:var(--ink); cursor:pointer;}
+  .amt-chips button.on{background:var(--mint); color:#fff; border-color:var(--mint);}
+  .pill-row{display:flex; gap:8px;}
+  .pill{flex:1; padding:17px 4px; border-radius:14px; border:2px solid var(--line); background:#fff; font-weight:800; font-size:16px; color:var(--sub); cursor:pointer;}
+  .pill.on{border-color:var(--pink); background:#fff0f4; color:var(--pink-d);}
 
   /* bottom nav */
   nav{position:fixed; left:0; right:0; bottom:0; z-index:30;
@@ -527,17 +542,71 @@ function recView(v){
   document.getElementById('seg-st').classList.toggle('on', v==='st');
   if(v==='st') renderStats();
 }
+let _amt=120;
+function fmtTimeKR(d){ let h=d.getHours(); const ap=h<12?'오전':'오후'; let hh=h%12; if(hh===0)hh=12; return ap+' '+hh+':'+pad(d.getMinutes()); }
+function timeControl(inputId, label){
+  return `<label>${label}</label>
+    <div class="time-big" id="big_${inputId}">—</div>
+    <div class="time-quick">
+      <button type="button" onclick="adj('${inputId}',-60)">−1시간</button>
+      <button type="button" onclick="adj('${inputId}',-10)">−10분</button>
+      <button type="button" onclick="adj('${inputId}',null)">지금</button>
+      <button type="button" onclick="adj('${inputId}',10)">＋10분</button>
+    </div>
+    <input type="datetime-local" class="field" id="${inputId}" onchange="bigUpdate('${inputId}')" style="margin-top:8px">`;
+}
+function adj(inputId, delta){
+  const el=document.getElementById(inputId);
+  let d = el.value ? new Date(el.value) : new Date();
+  if(delta===null) d=new Date(); else d=new Date(d.getTime()+delta*60000);
+  el.value=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  bigUpdate(inputId);
+}
+function bigUpdate(inputId){
+  const el=document.getElementById(inputId), big=document.getElementById('big_'+inputId);
+  if(big) big.textContent = el.value ? fmtTimeKR(new Date(el.value)) : '—';
+}
+function clearEnd(){ const e=document.getElementById('recEnd'); e.value=''; bigUpdate('recEnd'); }
+function setAmtDisplay(){
+  const b=document.getElementById('amtBig'); if(b) b.textContent=_amt+' ml';
+  const h=document.getElementById('recAmt'); if(h) h.value=_amt;
+  document.querySelectorAll('.amt-chips button').forEach(x=>x.classList.toggle('on', +x.dataset.v===_amt));
+}
+function adjAmt(d){ _amt=Math.max(0,_amt+d); setAmtDisplay(); }
+function setAmt(v){ _amt=v; setAmtDisplay(); }
+function pickKind(btn){
+  document.querySelectorAll('.pill-row .pill').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on'); document.getElementById('recKind').value=btn.dataset.k;
+}
+function addMemoChip(w){
+  const el=document.getElementById('recMemo'); const cur=el.value.trim();
+  const parts=cur?cur.split(/[,\s]+/):[];
+  if(!parts.includes(w)) el.value = cur ? cur+' '+w : w;
+}
 function openRec(type){
-  const now=localNowStr();
   let inner='<h3>'+REC[type].ic+' '+REC[type].name+' 기록</h3>';
   if(type==='feed'){
-    inner+=`<label>시간</label><input class="field" type="datetime-local" id="recTime" value="${now}">
-      <label>양 (ml)</label><input class="field" type="number" inputmode="numeric" id="recAmt" placeholder="예: 120">
-      <label>메모 (선택)</label><input class="field" id="recMemo" placeholder="예: 분유 / 모유 / 유산균">`;
+    inner+=timeControl('recTime','시간');
+    inner+=`<label>먹은 양</label>
+      <div class="amt-big" id="amtBig">120 ml</div>
+      <div class="amt-quick"><button type="button" onclick="adjAmt(-10)">−10</button><button type="button" onclick="adjAmt(10)">＋10</button></div>
+      <div class="amt-chips">${[60,90,120,150,180,200,240].map(v=>`<button type="button" data-v="${v}" onclick="setAmt(${v})">${v}</button>`).join('')}</div>
+      <input type="number" id="recAmt" hidden>
+      <label>메모 (선택)</label>
+      <div class="memo-chips" style="margin-bottom:7px">${['분유','모유','유산균'].map(w=>`<button type="button" onclick="addMemoChip('${w}')">${w}</button>`).join('')}</div>
+      <input class="field" id="recMemo" placeholder="메모">`;
   } else if(type==='diaper'){
-    inner+=`<label>시간</label><input class="field" type="datetime-local" id="recTime" value="${now}">
-      <label>종류</label>
-      <select class="field" id="recKind"><option>소변</option><option>대변</option><option>소변+대변</option></select>`;
+    inner+=timeControl('recTime','시간');
+    inner+=`<label>종류</label>
+      <div class="pill-row">
+        <button type="button" class="pill on" data-k="소변" onclick="pickKind(this)">소변</button>
+        <button type="button" class="pill" data-k="대변" onclick="pickKind(this)">대변</button>
+        <button type="button" class="pill" data-k="소변+대변" onclick="pickKind(this)">둘다</button>
+      </div>
+      <input id="recKind" hidden value="소변">
+      <label>메모 (선택)</label>
+      <div class="memo-chips" style="margin-bottom:7px">${['설사','변비','발진'].map(w=>`<button type="button" onclick="addMemoChip('${w}')">${w}</button>`).join('')}</div>
+      <input class="field" id="recMemo" placeholder="메모">`;
   } else if(type==='sleep'){
     const og=ongoingSleep();
     if(og){
@@ -545,23 +614,29 @@ function openRec(type){
         <br><button class="btn" style="background:#8a7fc2;margin-top:8px" onclick="endSleep('${og.id}')">지금 깨어남 기록</button></div>
         <div class="muted" style="text-align:center;margin:12px 0">또는 새 수면 직접 입력 ↓</div>`;
     }
-    inner+=`<label>잠든 시간</label><input class="field" type="datetime-local" id="recStart" value="${now}">
-      <label>깬 시간 (비우면 '수면 중'으로 기록)</label><input class="field" type="datetime-local" id="recEnd">`;
+    inner+=timeControl('recStart','잠든 시간');
+    inner+=`<label>깬 시간 (비우면 '수면 중')</label>
+      <div class="time-big" id="big_recEnd" style="font-size:20px">—</div>
+      <div class="time-quick" style="margin-bottom:6px"><button type="button" onclick="adj('recEnd',null)">지금</button><button type="button" onclick="clearEnd()">비우기</button></div>
+      <input type="datetime-local" class="field" id="recEnd" onchange="bigUpdate('recEnd')">`;
   } else if(type==='bath'){
-    inner+=`<label>시간</label><input class="field" type="datetime-local" id="recTime" value="${now}">`;
+    inner+=timeControl('recTime','시간');
   }
-  inner+=`<div class="row" style="margin-top:18px">
+  inner+=`<div class="row" style="margin-top:20px">
     <button class="btn ghost" onclick="closeRec()">취소</button>
     <button class="btn" onclick="saveRec('${type}')">저장</button>
   </div>`;
   document.getElementById('modalBody').innerHTML=inner;
+  const now=localNowStr();
+  ['recTime','recStart'].forEach(idd=>{ const e=document.getElementById(idd); if(e){ e.value=now; bigUpdate(idd); } });
+  if(type==='feed'){ _amt=120; setAmtDisplay(); }
   document.getElementById('modalBg').classList.add('on');
 }
 function closeRec(){ document.getElementById('modalBg').classList.remove('on'); }
 function saveRec(type){
   let rec={id:id(), type};
   if(type==='feed'){ rec.ts=val('recTime'); rec.amount=parseInt(val('recAmt'))||0; rec.memo=val('recMemo').trim(); }
-  else if(type==='diaper'){ rec.ts=val('recTime'); rec.kind=val('recKind'); }
+  else if(type==='diaper'){ rec.ts=val('recTime'); rec.kind=val('recKind'); rec.memo=val('recMemo').trim(); }
   else if(type==='sleep'){ rec.ts=val('recStart'); rec.start=val('recStart'); rec.end=val('recEnd')||null; if(rec.end && new Date(rec.end)<new Date(rec.start)){ alert('깬 시간이 잠든 시간보다 빠를 수 없어요.'); return; } }
   else if(type==='bath'){ rec.ts=val('recTime'); }
   if(!rec.ts){ alert('시간을 입력하세요.'); return; }
@@ -596,7 +671,7 @@ function renderRecords(){
     if(d!==cur){ cur=d; html+=`<div style="margin:12px 0 2px;font-weight:800;font-size:13.5px">${dateHeader(d)}</div>`; }
     const m=REC[r.type]; let detail='';
     if(r.type==='feed') detail=(r.amount?r.amount+'ml':'')+(r.memo?((r.amount?' · ':'')+esc(r.memo)):'');
-    else if(r.type==='diaper') detail=r.kind||'';
+    else if(r.type==='diaper') detail=(r.kind||'')+(r.memo?' · '+esc(r.memo):'');
     else if(r.type==='sleep') detail= r.end? (durText(durMin(r.start,r.end))+' · '+r.start.slice(11,16)+'~'+r.end.slice(11,16)) : '진행 중 💤';
     else if(r.type==='bath') detail='목욕 완료';
     html+=`<div style="display:flex;align-items:center;gap:9px;padding:9px 2px;border-bottom:1px solid var(--line)">
